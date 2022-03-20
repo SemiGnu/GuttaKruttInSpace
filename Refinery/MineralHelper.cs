@@ -31,6 +31,7 @@ namespace IngameScript
             _refineryOut.SetFilter(MyConveyorSorterMode.Blacklist, _activeMineral.OreFilter);
             foreach(var refinery in _refineries)
             {
+                if (refinery.InputInventory.GetItemAt(0)?.Type == _activeMineral.OreType) continue;
                 refinery.InputInventory.TransferItemTo(_container.GetInventory(), 0, stackIfPossible: true);
             }
             _refineryIn.SetFilter(MyConveyorSorterMode.Whitelist, _activeMineral.OreFilter);

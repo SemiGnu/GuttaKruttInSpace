@@ -67,14 +67,13 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            switch (updateSource)
+            if ((updateSource & UpdateType.Update10) > 0)
             {
-                case UpdateType.Update10:
-                    HandleUpdate();
-                    break;
-                case UpdateType.Trigger:
-                    HandleTrigger(argument);
-                    break;
+                HandleUpdate();
+            }
+            if ((updateSource & UpdateType.Trigger) > 0)
+            {
+                HandleTrigger(argument);
             }
         }
 
@@ -88,17 +87,16 @@ namespace IngameScript
                     break;
                 case "Up":
                     MoveMineral(-1);
-                    UpdateSorters(); 
                     break;
                 case "Down":
                     MoveMineral(1);
-                    UpdateSorters();
                     break;
             }
         }
 
         private void HandleUpdate()
         {
+            UpdateSorters();
             UpdateMineralAmounts();
             OutputInvenoryStatus(_refineryLcd);
             OutputRefineryStatus(_ownLcd);
