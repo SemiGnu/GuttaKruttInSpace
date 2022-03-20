@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32228.343
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillRig", "DrillRig\DrillRig.csproj", "{FDA2DC5B-4E09-4D7A-B19C-D94284F00113}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Refinery", "Refinery\Refinery.csproj", "{A6EE8235-102B-4604-8DCB-9E19354C4ADC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FDA2DC5B-4E09-4D7A-B19C-D94284F00113}.Debug|x64.ActiveCfg = Debug|x64
+		{FDA2DC5B-4E09-4D7A-B19C-D94284F00113}.Debug|x64.Build.0 = Debug|x64
+		{A6EE8235-102B-4604-8DCB-9E19354C4ADC}.Debug|x64.ActiveCfg = Debug|x64
+		{A6EE8235-102B-4604-8DCB-9E19354C4ADC}.Debug|x64.Build.0 = Debug|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F27F44C1-D051-4593-92AB-DB3CBCE5A41D}
+	EndGlobalSection
+EndGlobal
