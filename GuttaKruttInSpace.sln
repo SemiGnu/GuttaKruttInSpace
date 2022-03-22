@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillRig", "DrillRig\DrillR
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Refinery", "Refinery\Refinery.csproj", "{A6EE8235-102B-4604-8DCB-9E19354C4ADC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DockingComputer", "DockingComputer\DockingComputer.csproj", "{A34B5748-459B-401D-9C01-13FBACBF9127}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DockingHub", "DockingHub\DockingHub.csproj", "{3E0033DB-1554-466A-971A-7E0307A14F12}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -16,6 +20,10 @@ Global
 		{FDA2DC5B-4E09-4D7A-B19C-D94284F00113}.Debug|x64.Build.0 = Debug|x64
 		{A6EE8235-102B-4604-8DCB-9E19354C4ADC}.Debug|x64.ActiveCfg = Debug|x64
 		{A6EE8235-102B-4604-8DCB-9E19354C4ADC}.Debug|x64.Build.0 = Debug|x64
+		{A34B5748-459B-401D-9C01-13FBACBF9127}.Debug|x64.ActiveCfg = Debug|x64
+		{A34B5748-459B-401D-9C01-13FBACBF9127}.Debug|x64.Build.0 = Debug|x64
+		{3E0033DB-1554-466A-971A-7E0307A14F12}.Debug|x64.ActiveCfg = Debug|x64
+		{3E0033DB-1554-466A-971A-7E0307A14F12}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
