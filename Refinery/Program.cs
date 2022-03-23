@@ -43,9 +43,9 @@ namespace IngameScript
             _container = GridTerminalSystem.GetBlockWithName("Main Container") as IMyCargoContainer;
 
             _refineries = new List<IMyRefinery>();
-            GridTerminalSystem.GetBlocksOfType<IMyRefinery>(_refineries);
+            GridTerminalSystem.GetBlocksOfType(_refineries, r => r.IsFunctional);
 
-            _oreInventories = _refineries.Where(r => r.IsFunctional).Select(r => r.InputInventory).ToList();
+            _oreInventories = _refineries.Select(r => r.InputInventory).ToList();
             _oreInventories.Add(_container.GetInventory());
             _ingotInventory = _container.GetInventory();
 
