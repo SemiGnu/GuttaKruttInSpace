@@ -23,10 +23,11 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         IMyShipConnector _connector;
-
         IMyTextSurface _dockingLcd;
-
         IMyUnicastListener _listener;
+
+        MatrixD _targetWorldMatrix = MatrixD.Zero;
+        double _targetDistance = double.NaN;
 
         string _dockingBroadcastTag = "DOCKING_LISTENER";
         string _unicastTag = "DOCKING_INFORMATION";
@@ -49,12 +50,17 @@ namespace IngameScript
             {
                 var status = $"Sending matrix\n{_connector.WorldMatrix}";
                 Echo(status);
-                _dockingLcd.WriteText(status, false);
+                _dockingLcd.WriteText(status);
                 IGC.SendBroadcastMessage(_dockingBroadcastTag, _connector.WorldMatrix);
             }
             if ((updateSource & UpdateType.IGC) > 0)
             {
+                _dockingLcd.WriteText("Message Rceived");
                 HandleMessages();
+            }
+            if ((updateSource & UpdateType.Update10) > 0)
+            {
+                CalculateDistance();
             }
         }
 
@@ -63,17 +69,27 @@ namespace IngameScript
             while (_listener.HasPendingMessage)
             {
                 MyIGCMessage message = _listener.AcceptMessage();
+                _dockingLcd.WriteText("Message Accepted");
                 if (message.Tag == _unicastTag)
                 {
+                    _dockingLcd.WriteText("Message Tag Validated", true);
                     if (message.Data is MyTuple<string, MatrixD>)
                     {
-                        Echo("TEST");
+                        _dockingLcd.WriteText("Message Type Validated", true);
                         var data = (MyTuple<string, MatrixD>)message.Data;
-                        Echo($"TEST2: {data.Item1}");
-                        _dockingLcd.WriteText($"TEST2: {data.Item1}", false);
+                        _dockingLcd.WriteText($"Item 1: {data.Item1}", true);
+                        _dockingLcd.WriteText($"Item 2: {data.Item2}", true);
+                        _targetWorldMatrix = data.Item2;
                     }
                 }
             }
+        }
+
+        private void CalculateDistance()
+        {
+            if (_targetWorldMatrix == MatrixD.Zero) return;
+            var distance = _targetWorldMatrix.Translation - _connector.WorldMatrix.Translation;
+            _targetDistance = distance.Length();
         }
     }
 }

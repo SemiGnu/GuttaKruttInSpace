@@ -101,7 +101,6 @@ namespace IngameScript
             if (angle < -45) _hinge.TargetVelocityRPM = 1f;
 
             var status = "Radar Dish Status\n";
-            //status += $"Dish Angle: {angle:00}°\n";
             status += $"Dish Angle: {Math.Abs(angle):00}° {(angle < 0 ? "left" : "right")}\n";
             status += $"Panning {(speed < 0 ? "left" : "right")}\n";
             status += $"  at {Math.Abs(speed):0} °/s";
