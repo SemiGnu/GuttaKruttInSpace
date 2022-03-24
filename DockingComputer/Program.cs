@@ -27,6 +27,7 @@ namespace IngameScript
         IMyTextSurface _dockingLcd;
         IMyUnicastListener _listener;
 
+        MatrixD _connectorMatrix => _connector.WorldMatrix;
         MatrixD _targetMatrix = MatrixD.Zero;
         Vector3D _targetVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
@@ -37,8 +38,6 @@ namespace IngameScript
         string _unicastTag = "DOCKING_INFORMATION";
 
         double _dockingOffset = 1.85;
-
-        int _hm = 0;
 
         public Program()
         {
@@ -58,16 +57,9 @@ namespace IngameScript
             {
                 HandleDockingTrigger();
             }
-            if ((updateSource & UpdateType.IGC) > 0)
-            {
-                HandleMessages();
-            }
             if ((updateSource & UpdateType.Update10) > 0)
             {
-                if (_listener.HasPendingMessage)
-                {
-                    HandleMessages();
-                }
+                HandleMessages();
                 CalculateTargetVector();
                 CalculateRotationVector();
                 TryDocking();
@@ -89,10 +81,7 @@ namespace IngameScript
         {
             if (_targetMatrix == MatrixD.Zero)
             {
-                var status = $"Sending matrix\n{_connector.WorldMatrix}";
-                Echo(status);
-                _dockingLcd.WriteText(status);
-                IGC.SendBroadcastMessage(_dockingBroadcastTag, _connector.WorldMatrix);
+                IGC.SendBroadcastMessage(_dockingBroadcastTag, _connectorMatrix);
                 return;
             }
             _targetMatrix = MatrixD.Zero;
@@ -119,7 +108,7 @@ namespace IngameScript
         private void CalculateTargetVector()
         {
             if (_targetMatrix == MatrixD.Zero) return;
-            var distance = _targetMatrix.Translation - _connector.WorldMatrix.Translation;
+            var distance = _targetMatrix.Translation - _connectorMatrix.Translation;
             _targetVector = Vector3D.TransformNormal(distance, MatrixD.Transpose(_cockpit.WorldMatrix));
         }
 
@@ -127,8 +116,14 @@ namespace IngameScript
         {
             if (_targetMatrix == MatrixD.Zero) return;
             //_rotationVector = _targetMatrix.Forward - _connector.WorldMatrix.Backward;
-            _rotationVector = Vector3D.TransformNormal(_targetMatrix.Forward - _connector.WorldMatrix.Backward, MatrixD.Transpose(_cockpit.WorldMatrix));
-
+            //_rotationVector = Vector3D.TransformNormal(_targetMatrix.Forward - _connector.WorldMatrix.Backward, MatrixD.Transpose(_cockpit.WorldMatrix));
+            var target = Quaternion.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
+            var self = Quaternion.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
+            var rotation = target / self;
+            Vector3 axis;
+            float angle;
+            rotation.GetAxisAngle(out axis, out angle);
+            _rotationVector = axis;
         }
 
         private string GetStatus() 
@@ -144,7 +139,7 @@ namespace IngameScript
                 status += "Offline";
                 return status;
             }
-            status += $"Target: {_targetName}\n";
+            status += $"Target:   {_targetName}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.X,"X")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Y,"Y")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Z,"Z")}\n";
@@ -164,7 +159,7 @@ namespace IngameScript
                 case "X":
                     return trans + (magnitude > 0 ? "Rgt" : "Lft");
                 case "Y":
-                    return trans + (magnitude > 0 ? "Up" : "Dwn");
+                    return trans + (magnitude > 0 ? " Up" : "Dwn");
                 default:
                     return trans + (magnitude > 0 ? "Bwd" : "Fwd");
             }
