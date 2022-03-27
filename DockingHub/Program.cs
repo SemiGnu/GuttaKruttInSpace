@@ -22,7 +22,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        IMyMotorStator _hinge;
+        //IMyMotorStator _hinge;
         IMyTextSurface _lcd;
         List<IMyShipConnector> _connectors;
 
@@ -35,7 +35,7 @@ namespace IngameScript
 
         public Program()
         {
-            _hinge = GridTerminalSystem.GetBlockWithName("Hinge - Radar Dish") as IMyMotorStator;
+            //_hinge = GridTerminalSystem.GetBlockWithName("Hinge - Radar Dish") as IMyMotorStator;
             _lcd = Me.GetSurface(0);
 
             _connectors = new List<IMyShipConnector>();
@@ -88,25 +88,25 @@ namespace IngameScript
 
         private void PrintStatus()
         {
-            var status = GetStatus();
-            _lcd.WriteText($"{status}");
+            //var status = GetStatus();
+            //_lcd.WriteText($"{status}");
         }
 
-        private string GetStatus()
-        {
-            var angle = _hinge.Angle * (180 / Math.PI);
-            var speed = _hinge.TargetVelocityRPM * 6;
+        //private string GetStatus()
+        //{
+        //    var angle = _hinge.Angle * (180 / Math.PI);
+        //    var speed = _hinge.TargetVelocityRPM * 6;
 
-            if (angle > 45) _hinge.TargetVelocityRPM = -1f;
-            if (angle < -45) _hinge.TargetVelocityRPM = 1f;
+        //    if (angle > 45) _hinge.TargetVelocityRPM = -1f;
+        //    if (angle < -45) _hinge.TargetVelocityRPM = 1f;
 
-            var status = "Radar Dish Status\n";
-            status += $"Dish Angle: {Math.Abs(angle):00}° {(angle < 0 ? "left" : "right")}\n";
-            status += $"Panning {(speed < 0 ? "left" : "right")}\n";
-            status += $"  at {Math.Abs(speed):0} °/s";
+        //    var status = "Radar Dish Status\n";
+        //    status += $"Dish Angle: {Math.Abs(angle):00}° {(angle < 0 ? "left" : "right")}\n";
+        //    status += $"Panning {(speed < 0 ? "left" : "right")}\n";
+        //    status += $"  at {Math.Abs(speed):0} °/s";
 
-            return status;
-        }
+        //    return status;
+        //}
 
     }
 }

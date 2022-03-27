@@ -11,6 +11,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DockingComputer", "DockingC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DockingHub", "DockingHub\DockingHub.csproj", "{3E0033DB-1554-466A-971A-7E0307A14F12}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JumpStatus", "JumpStatus\JumpStatus.csproj", "{4FC81CA6-C0B7-493C-BF12-EFD593E86500}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillCrane", "DrillCrane\DrillCrane.csproj", "{A707B339-EDA0-47F5-9BE5-D74889CCD636}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Airlock", "Airlock\Airlock.csproj", "{CDC89051-04CD-4C2A-A530-4A2B7E4A240D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillRig2", "DrillRig2\DrillRig2.csproj", "{83D64592-DE22-41FB-875F-217F473E4725}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -24,6 +32,14 @@ Global
 		{A34B5748-459B-401D-9C01-13FBACBF9127}.Debug|x64.Build.0 = Debug|x64
 		{3E0033DB-1554-466A-971A-7E0307A14F12}.Debug|x64.ActiveCfg = Debug|x64
 		{3E0033DB-1554-466A-971A-7E0307A14F12}.Debug|x64.Build.0 = Debug|x64
+		{4FC81CA6-C0B7-493C-BF12-EFD593E86500}.Debug|x64.ActiveCfg = Debug|x64
+		{4FC81CA6-C0B7-493C-BF12-EFD593E86500}.Debug|x64.Build.0 = Debug|x64
+		{A707B339-EDA0-47F5-9BE5-D74889CCD636}.Debug|x64.ActiveCfg = Debug|x64
+		{A707B339-EDA0-47F5-9BE5-D74889CCD636}.Debug|x64.Build.0 = Debug|x64
+		{CDC89051-04CD-4C2A-A530-4A2B7E4A240D}.Debug|x64.ActiveCfg = Debug|x64
+		{CDC89051-04CD-4C2A-A530-4A2B7E4A240D}.Debug|x64.Build.0 = Debug|x64
+		{83D64592-DE22-41FB-875F-217F473E4725}.Debug|x64.ActiveCfg = Debug|x64
+		{83D64592-DE22-41FB-875F-217F473E4725}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

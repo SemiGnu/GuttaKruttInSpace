@@ -1,0 +1,8 @@
+﻿Airlock
+Paste to Custom Data:
+
+[blockNames]
+innerDoor=
+outerDoor=
+airlockAirvent=
+airlockLcd=

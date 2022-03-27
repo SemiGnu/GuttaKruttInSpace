@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -61,7 +61,7 @@ namespace IngameScript
             {
                 HandleMessages();
                 CalculateTargetVector();
-                CalculateRotationVector();
+                //CalculateRotationVector();
                 TryDocking();
                 _dockingLcd.WriteText(GetStatus());
             }
@@ -97,12 +97,20 @@ namespace IngameScript
                     if (message.Data is MyTuple<string, MatrixD>)
                     {
                         var data = (MyTuple<string, MatrixD>)message.Data;
-                        _targetName = data.Item1;
-                        _targetMatrix = data.Item2;
-                        _targetMatrix.Translation += _targetMatrix.Forward * _dockingOffset;
+                        var newMatrix = data.Item2;
+                        newMatrix.Translation += newMatrix.Forward * _dockingOffset;
+                        if (Distance(newMatrix) < Distance(_targetMatrix)) {
+                            _targetName = data.Item1;
+                            _targetMatrix = newMatrix;
+                        }
                     }
                 }
             }
+        }
+
+        double Distance(MatrixD target)
+        {
+            return Vector3D.Distance(target.Translation, _connectorMatrix.Translation);
         }
 
         private void CalculateTargetVector()
@@ -143,10 +151,10 @@ namespace IngameScript
             status += $"Tanslate: {GetTranslation(_targetVector.X,"X")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Y,"Y")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Z,"Z")}\n";
-            status += "Rotational controls\nmalfunctioning\n";
-            status += $"Pitch:    {_rotationVector.X:0.00} Up\n";
-            status += $"Pitch:    {_rotationVector.X:0.00} Up\n";
-            status += $"Roll:     {_rotationVector.Z:0.00} Rgt\n";
+            status += "\nRotational controls\noffline\n";
+            //status += $"Pitch:    {_rotationVector.X:0.00} X\n";
+            //status += $"Pitch:    {_rotationVector.Y:0.00} Y\n";
+            //status += $"Roll:     {_rotationVector.Z:0.00} Z\n";
             return status;
         }
 

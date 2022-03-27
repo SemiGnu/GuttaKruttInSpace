@@ -25,6 +25,7 @@ namespace IngameScript
         IMyShipConnector _connector;
         IMyConveyorSorter _sorter;
         IMyCargoContainer _container;
+        List<IMyCargoContainer> _containers;
         IMyTextSurface _cargoLcd;
         List<MyInventoryItemFilter> _stoneFilter;
         List<MyInventoryItemFilter> _noFilter;
@@ -36,6 +37,7 @@ namespace IngameScript
             _connector = GridTerminalSystem.GetBlockWithName("Drill Connector") as IMyShipConnector;
             _sorter = GridTerminalSystem.GetBlockWithName("Drill Sorter") as IMyConveyorSorter;
             _container = GridTerminalSystem.GetBlockWithName("Drill Cargo") as IMyCargoContainer;
+            GridTerminalSystem.GetBlocksOfType(_containers);
 
             var cockpit = GridTerminalSystem.GetBlockWithName("Drill Cockpit") as IMyCockpit;
             _cargoLcd = cockpit.GetSurface(2);
