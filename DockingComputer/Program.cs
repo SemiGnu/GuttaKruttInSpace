@@ -134,7 +134,7 @@ namespace IngameScript
         private void CalculateRotationVector()
         {
             if (_targetMatrix == MatrixD.Zero) return;
-            var axis = Vector3D.Cross(_dockVector, _connectorVector) / (_dockVector.Length() * _connectorVector.Length());
+            var axis = Vector3D.Cross(_dockVector, _connectorVector);
             double angle = Math.Asin(axis.Normalize());
 
             MatrixD worldToCockpit = MatrixD.Invert(_cockpit.WorldMatrix.GetOrientation());
@@ -143,15 +143,6 @@ namespace IngameScript
             double value = Math.Log(angle + 1, 2);
             localAxis *= value < 0.001 ? 0 : value;
             _rotationVector = localAxis;
-            ////_rotationVector = _targetMatrix.Forward - _connector.WorldMatrix.Backward;
-            ////_rotationVector = Vector3D.TransformNormal(_targetMatrix.Forward - _connector.WorldMatrix.Backward, MatrixD.Transpose(_cockpit.WorldMatrix));
-            //var target = Quaternion.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
-            //var self = Quaternion.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
-            //var rotation = target / self;
-            //Vector3 axis;
-            //float angle;
-            //rotation.GetAxisAngle(out axis, out angle);
-            //_rotationVector = axis;
         }
 
         private string GetStatus() 
@@ -171,7 +162,6 @@ namespace IngameScript
             status += $"Tanslate: {GetTranslation(_targetVector.X,"X")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Y,"Y")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Z,"Z")}\n";
-            //status += "\nRotational controls\noffline\n";
             status += $"Pitch:    {GetAngle(_rotationVector.X, "X")}\n";
             status += $"Yaw:      {GetAngle(_rotationVector.Y, "Y")}\n";
             status += $"Roll:     {GetAngle(_rotationVector.Z, "Z")}\n";
@@ -200,7 +190,7 @@ namespace IngameScript
             switch (direction)
             {
                 case "X":
-                    return trans + (magnitude > 0 ? "Dwm" : " Up");
+                    return trans + (magnitude > 0 ? "Dwn" : " Up");
                 case "Y":
                     return trans + (magnitude > 0 ? "Rgt" : "Lft");
                 default:
