@@ -32,6 +32,10 @@ namespace IngameScript
         Vector3D _targetVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
 
+        Vector3D _dockVector => _targetMatrix.Backward;
+        Vector3D _connectorVector => _connectorMatrix.Forward;
+
+
         string _targetName;
 
         string _dockingBroadcastTag = "DOCKING_LISTENER";
@@ -41,9 +45,16 @@ namespace IngameScript
 
         public Program()
         {
-            _connector = GridTerminalSystem.GetBlockWithName("Drill Connector") as IMyShipConnector;
-            _cockpit = GridTerminalSystem.GetBlockWithName("Drill Cockpit") as IMyCockpit;
-            _dockingLcd = _cockpit.GetSurface(1);
+            var connectors = new List<IMyShipConnector>();
+            GridTerminalSystem.GetBlocksOfType(connectors, c => c.IsParkingEnabled && c.BlockDefinition.SubtypeName != "ConnectorSmall");
+            if (connectors.Count != 1) throw new Exception($"Must have one parking connector, actual {connectors.Count}");
+            _connector = connectors.First();
+
+            var cockpits = new List<IMyCockpit>();
+            GridTerminalSystem.GetBlocksOfType(cockpits, c => c.IsMainCockpit);
+            if (cockpits.Count != 1) throw new Exception($"Must have one main cockpit, actual {cockpits.Count}");
+            _cockpit = cockpits.First();
+            _dockingLcd = _cockpit.GetSurface(0);
 
             _listener = IGC.UnicastListener;
 
@@ -61,7 +72,7 @@ namespace IngameScript
             {
                 HandleMessages();
                 CalculateTargetVector();
-                //CalculateRotationVector();
+                CalculateRotationVector();
                 TryDocking();
                 _dockingLcd.WriteText(GetStatus());
             }
@@ -123,15 +134,24 @@ namespace IngameScript
         private void CalculateRotationVector()
         {
             if (_targetMatrix == MatrixD.Zero) return;
-            //_rotationVector = _targetMatrix.Forward - _connector.WorldMatrix.Backward;
-            //_rotationVector = Vector3D.TransformNormal(_targetMatrix.Forward - _connector.WorldMatrix.Backward, MatrixD.Transpose(_cockpit.WorldMatrix));
-            var target = Quaternion.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
-            var self = Quaternion.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
-            var rotation = target / self;
-            Vector3 axis;
-            float angle;
-            rotation.GetAxisAngle(out axis, out angle);
-            _rotationVector = axis;
+            var axis = Vector3D.Cross(_dockVector, _connectorVector) / (_dockVector.Length() * _connectorVector.Length());
+            double angle = Math.Asin(axis.Normalize());
+
+            MatrixD worldToCockpit = MatrixD.Invert(_cockpit.WorldMatrix.GetOrientation());
+            Vector3D localAxis = Vector3D.Transform(axis, worldToCockpit);
+
+            double value = Math.Log(angle + 1, 2);
+            localAxis *= value < 0.001 ? 0 : value;
+            _rotationVector = localAxis;
+            ////_rotationVector = _targetMatrix.Forward - _connector.WorldMatrix.Backward;
+            ////_rotationVector = Vector3D.TransformNormal(_targetMatrix.Forward - _connector.WorldMatrix.Backward, MatrixD.Transpose(_cockpit.WorldMatrix));
+            //var target = Quaternion.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
+            //var self = Quaternion.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
+            //var rotation = target / self;
+            //Vector3 axis;
+            //float angle;
+            //rotation.GetAxisAngle(out axis, out angle);
+            //_rotationVector = axis;
         }
 
         private string GetStatus() 
@@ -151,10 +171,10 @@ namespace IngameScript
             status += $"Tanslate: {GetTranslation(_targetVector.X,"X")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Y,"Y")}\n";
             status += $"Tanslate: {GetTranslation(_targetVector.Z,"Z")}\n";
-            status += "\nRotational controls\noffline\n";
-            //status += $"Pitch:    {_rotationVector.X:0.00} X\n";
-            //status += $"Pitch:    {_rotationVector.Y:0.00} Y\n";
-            //status += $"Roll:     {_rotationVector.Z:0.00} Z\n";
+            //status += "\nRotational controls\noffline\n";
+            status += $"Pitch:    {GetAngle(_rotationVector.X, "X")}\n";
+            status += $"Yaw:      {GetAngle(_rotationVector.Y, "Y")}\n";
+            status += $"Roll:     {GetAngle(_rotationVector.Z, "Z")}\n";
             return status;
         }
 
@@ -170,6 +190,21 @@ namespace IngameScript
                     return trans + (magnitude > 0 ? " Up" : "Dwn");
                 default:
                     return trans + (magnitude > 0 ? "Bwd" : "Fwd");
+            }
+        }
+
+        string GetAngle(double magnitude, string direction)
+        {
+            if (Math.Abs(magnitude) < 0.1) return "OK";
+            var trans = $"{Math.Abs(magnitude):0.0} ";
+            switch (direction)
+            {
+                case "X":
+                    return trans + (magnitude > 0 ? "Dwm" : " Up");
+                case "Y":
+                    return trans + (magnitude > 0 ? "Rgt" : "Lft");
+                default:
+                    return trans + (magnitude > 0 ? "Rgt" : "Lft");
             }
         }
 

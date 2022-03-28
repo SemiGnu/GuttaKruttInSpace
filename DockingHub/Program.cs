@@ -50,15 +50,9 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            if ( (updateSource & UpdateType.Update10) > 0 )
-            {
-                Echo(_lastSent);
-                PrintStatus();
-            }
-            if ((updateSource & UpdateType.IGC) > 0)
-            {
-                HandleMessages();
-            }
+            Echo(_lastSent);
+            PrintStatus();
+            HandleMessages();
         }
 
         private void HandleMessages()
