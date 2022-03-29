@@ -26,15 +26,26 @@ namespace IngameScript
         IMyCockpit _cockpit;
         IMyTextSurface _dockingLcd;
         IMyUnicastListener _listener;
+        List<IMyGyro> _gyros = new List<IMyGyro>();
+
+        List<IMyThrust> _allThrusters = new List<IMyThrust>();
+        List<IMyThrust> _upThrusters = new List<IMyThrust>();
+        List<IMyThrust> _downThrusters = new List<IMyThrust>();
 
         MatrixD _connectorMatrix => _connector.WorldMatrix;
         MatrixD _targetMatrix = MatrixD.Zero;
         Vector3D _targetVector = Vector3D.Zero;
+        Vector3D _startVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
+        Vector3D _gyroVector = Vector3D.Zero;
 
         Vector3D _dockVector => _targetMatrix.Backward;
         Vector3D _connectorVector => _connectorMatrix.Forward;
 
+        PID _x;
+        PID _y;
+        PID _z;
+        const double Timestep = 10.0 / 60;
 
         string _targetName;
 
@@ -42,6 +53,11 @@ namespace IngameScript
         string _unicastTag = "DOCKING_INFORMATION";
 
         double _dockingOffset = 1.85;
+
+        double _angle = 0;
+        float _xx = 0;
+        bool _auto = false;
+        bool _translating = false;
 
         public Program()
         {
@@ -56,6 +72,16 @@ namespace IngameScript
             _cockpit = cockpits.First();
             _dockingLcd = _cockpit.GetSurface(0);
 
+            GridTerminalSystem.GetBlocksOfType(_gyros);
+            GridTerminalSystem.GetBlocksOfType(_allThrusters);
+            GridTerminalSystem.GetBlocksOfType(_upThrusters, t => t.Orientation.Forward == _cockpit.Orientation.Up);
+            GridTerminalSystem.GetBlocksOfType(_downThrusters, t => t.Orientation.Forward == _cockpit.Orientation.Up + 1);
+
+            _x = new PID(1, 0, 0, Timestep);
+            _y = new PID(1, 0, 0, Timestep);
+            _z = new PID(1, 0, 0, Timestep);
+
+
             _listener = IGC.UnicastListener;
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -68,14 +94,66 @@ namespace IngameScript
             {
                 HandleDockingTrigger();
             }
+            if ((updateSource & UpdateType.Trigger) > 0 && argument == "Toggle Auto")
+            {
+                HandleAutoTrigger();
+            }
             if ((updateSource & UpdateType.Update10) > 0)
             {
                 HandleMessages();
                 CalculateTargetVector();
                 CalculateRotationVector();
+                SetGyros();
+                //ControlThrust();
                 TryDocking();
                 _dockingLcd.WriteText(GetStatus());
             }
+        }
+        private void Translate() {
+            if (!_auto || _angle > 0.01) return;
+            if (!_translating)
+            {
+                _translating = true;
+                _startVector = _targetVector / 2;
+
+            }
+        }
+
+        //private void ControlThrust()
+        //{
+        //    if (!_auto || _angle > 0.01) return;
+        //    var xErr = - _targetVector.X / _startVector.X;
+        //    var t = (float)_x.Control(xErr);
+        //    _xx = t;
+        //    Echo($"{xErr}");
+        //    SetThrust(t, "X");
+        //}
+
+        //private void SetThrust(float thrust, string direction)
+        //{
+        //    switch(direction)
+        //    {
+        //        case "X":
+        //            if (thrust > 0)
+        //            {
+        //                _upThrusters.ForEach(t => t.ThrustOverridePercentage = Math.Max(thrust);
+        //            } else
+        //            {
+        //                _downThrusters.ForEach(t => t.ThrustOverridePercentage = -thrust);
+        //            }
+        //            break;
+        //        default:
+        //            break;
+
+        //    }
+            
+        //}
+
+        private void HandleAutoTrigger()
+        {
+            _auto = !_auto;
+            _gyros.ForEach(g => g.GyroOverride = _auto);
+            _startVector = _targetVector;
         }
 
         private void TryDocking()
@@ -84,7 +162,7 @@ namespace IngameScript
             if (_connector.Status == MyShipConnectorStatus.Connectable)
             {
                 _connector.Connect();
-                _targetMatrix = MatrixD.Zero;
+                Shutdown();
             }
         }
 
@@ -95,7 +173,16 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(_dockingBroadcastTag, _connectorMatrix);
                 return;
             }
+            Shutdown();
+        }
+
+        private void Shutdown()
+        {
             _targetMatrix = MatrixD.Zero;
+            _auto = false;
+            _translating = false;
+            _gyros.ForEach(g => g.GyroOverride = false); 
+            _allThrusters.ForEach(t => t.ThrustOverridePercentage = 0);
         }
 
         private void HandleMessages()
@@ -112,7 +199,8 @@ namespace IngameScript
                         newMatrix.Translation += newMatrix.Forward * _dockingOffset;
                         if (Distance(newMatrix) < Distance(_targetMatrix)) {
                             _targetName = data.Item1;
-                            _targetMatrix = newMatrix;
+                            _targetMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
+                            _targetMatrix.Translation = newMatrix.Translation;
                         }
                     }
                 }
@@ -134,15 +222,36 @@ namespace IngameScript
         private void CalculateRotationVector()
         {
             if (_targetMatrix == MatrixD.Zero) return;
-            var axis = Vector3D.Cross(_dockVector, _connectorVector);
-            double angle = Math.Asin(axis.Normalize());
+            QuaternionD target = QuaternionD.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
+            QuaternionD current = QuaternionD.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
+            QuaternionD rotation = target / current;
+            rotation.Normalize();
+            Vector3D axis;
+            rotation.GetAxisAngle(out axis, out _angle);
 
             MatrixD worldToCockpit = MatrixD.Invert(_cockpit.WorldMatrix.GetOrientation());
+            MatrixD worldToGyro = MatrixD.Invert(_gyros.First().WorldMatrix.GetOrientation());
             Vector3D localAxis = Vector3D.Transform(axis, worldToCockpit);
+            Vector3D localGyroAxis = Vector3D.Transform(axis, worldToGyro);
 
-            double value = Math.Log(angle + 1, 2);
+            double value = Math.Log(_angle + 1, 2);
             localAxis *= value < 0.001 ? 0 : value;
             _rotationVector = localAxis;
+            localGyroAxis *= value < 0.001 ? 0 : value;
+            _gyroVector = localGyroAxis;
+        }
+
+
+
+        void SetGyros()
+        {
+            if (!_auto) return;
+            _gyros.ForEach(g =>
+            {
+                g.Pitch = (float)-_gyroVector.X;
+                g.Yaw = (float)-_gyroVector.Y;
+                g.Roll = (float)-_gyroVector.Z;
+            });
         }
 
         private string GetStatus() 
@@ -165,6 +274,9 @@ namespace IngameScript
             status += $"Pitch:    {GetAngle(_rotationVector.X, "X")}\n";
             status += $"Yaw:      {GetAngle(_rotationVector.Y, "Y")}\n";
             status += $"Roll:     {GetAngle(_rotationVector.Z, "Z")}\n";
+            status += $"test: {_angle}\n";
+            status += $"test: {_xx}\n";
+            status += $"test: {_upThrusters.Except(_downThrusters).Any()}\n";
             return status;
         }
 
@@ -190,13 +302,80 @@ namespace IngameScript
             switch (direction)
             {
                 case "X":
-                    return trans + (magnitude > 0 ? "Dwn" : " Up");
+                    return trans + (magnitude < 0 ? "Dwn" : " Up");
                 case "Y":
-                    return trans + (magnitude > 0 ? "Rgt" : "Lft");
+                    return trans + (magnitude < 0 ? "Rgt" : "Lft");
                 default:
-                    return trans + (magnitude > 0 ? "Rgt" : "Lft");
+                    return trans + (magnitude < 0 ? "Rgt" : "Lft");
             }
         }
 
+        public class PID
+        {
+            readonly double _kP = 0;
+            readonly double _kI = 0;
+            readonly double _kD = 0;
+
+            double _timeStep = 0;
+            double _inverseTimeStep = 0;
+            double _errorSum = 0;
+            double _lastError = 0;
+            bool _firstRun = true;
+
+            public double Value { get; private set; }
+
+            public PID(double kP, double kI, double kD, double timeStep)
+            {
+                _kP = kP;
+                _kI = kI;
+                _kD = kD;
+                _timeStep = timeStep;
+                _inverseTimeStep = 1 / _timeStep;
+            }
+
+            protected virtual double GetIntegral(double currentError, double errorSum, double timeStep)
+            {
+                return errorSum + currentError * timeStep;
+            }
+
+            public double Control(double error)
+            {
+                //Compute derivative term
+                var errorDerivative = (error - _lastError) * _inverseTimeStep;
+
+                if (_firstRun)
+                {
+                    errorDerivative = 0;
+                    _firstRun = false;
+                }
+
+                //Get error sum
+                _errorSum = GetIntegral(error, _errorSum, _timeStep);
+
+                //Store this error as last error
+                _lastError = error;
+
+                //Construct output
+                this.Value = _kP * error + _kI * _errorSum + _kD * errorDerivative;
+                return this.Value;
+            }
+
+            public double Control(double error, double timeStep)
+            {
+                if (timeStep != _timeStep)
+                {
+                    _timeStep = timeStep;
+                    _inverseTimeStep = 1 / _timeStep;
+                }
+                return Control(error);
+            }
+
+            public void Reset()
+            {
+                _errorSum = 0;
+                _lastError = 0;
+                _firstRun = true;
+            }
+        }
     }
 }
