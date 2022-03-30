@@ -27,10 +27,7 @@ namespace IngameScript
         IMyTextSurface _dockingLcd;
         IMyUnicastListener _listener;
         List<IMyGyro> _gyros = new List<IMyGyro>();
-
-        List<IMyThrust> _allThrusters = new List<IMyThrust>();
-        List<IMyThrust> _upThrusters = new List<IMyThrust>();
-        List<IMyThrust> _downThrusters = new List<IMyThrust>();
+        IMyRemoteControl _remote;
 
         MatrixD _connectorMatrix => _connector.WorldMatrix;
         MatrixD _targetMatrix = MatrixD.Zero;
@@ -38,14 +35,6 @@ namespace IngameScript
         Vector3D _startVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
         Vector3D _gyroVector = Vector3D.Zero;
-
-        Vector3D _dockVector => _targetMatrix.Backward;
-        Vector3D _connectorVector => _connectorMatrix.Forward;
-
-        PID _x;
-        PID _y;
-        PID _z;
-        const double Timestep = 10.0 / 60;
 
         string _targetName;
 
@@ -55,9 +44,9 @@ namespace IngameScript
         double _dockingOffset = 1.85;
 
         double _angle = 0;
-        float _xx = 0;
-        bool _auto = false;
-        bool _translating = false;
+
+        State _state = State.Standby;
+        bool IsAligning => (_state & State.Alingning) > 0;
 
         public Program()
         {
@@ -66,6 +55,11 @@ namespace IngameScript
             if (connectors.Count != 1) throw new Exception($"Must have one parking connector, actual {connectors.Count}");
             _connector = connectors.First();
 
+            var remotes = new List<IMyRemoteControl>();
+            GridTerminalSystem.GetBlocksOfType(remotes);
+            if (!remotes.Any()) throw new Exception($"Must have a remote control");
+            _remote = remotes.First();
+
             var cockpits = new List<IMyCockpit>();
             GridTerminalSystem.GetBlocksOfType(cockpits, c => c.IsMainCockpit);
             if (cockpits.Count != 1) throw new Exception($"Must have one main cockpit, actual {cockpits.Count}");
@@ -73,14 +67,8 @@ namespace IngameScript
             _dockingLcd = _cockpit.GetSurface(0);
 
             GridTerminalSystem.GetBlocksOfType(_gyros);
-            GridTerminalSystem.GetBlocksOfType(_allThrusters);
-            GridTerminalSystem.GetBlocksOfType(_upThrusters, t => t.Orientation.Forward == _cockpit.Orientation.Up);
-            GridTerminalSystem.GetBlocksOfType(_downThrusters, t => t.Orientation.Forward == _cockpit.Orientation.Up + 1);
-
-            _x = new PID(1, 0, 0, Timestep);
-            _y = new PID(1, 0, 0, Timestep);
-            _z = new PID(1, 0, 0, Timestep);
-
+            if (!_gyros.Any()) throw new Exception($"Must have a gyro");
+            _gyros = _gyros.GroupBy(g => g.Orientation.Forward).OrderBy(g => g.Count()).First().ToList();
 
             _listener = IGC.UnicastListener;
 
@@ -104,16 +92,49 @@ namespace IngameScript
                 CalculateTargetVector();
                 CalculateRotationVector();
                 SetGyros();
+                HandleState();
                 TryDocking();
                 _dockingLcd.WriteText(GetStatus());
             }
         }
 
+        private void HandleState()
+        {
+            if(_state == State.Alingning && _angle < 0.01 )
+            {
+                StartTranslate();
+            }
+            if(_state == (State.Alingning | State.Translating) && _angle > 0.02)
+            {
+                StopTranslate();
+            }
+        }
+
+        private void StartTranslate()
+        {
+            var waypoint = _remote.CubeGrid.WorldMatrix.Translation + _targetVector;
+            _remote.ClearWaypoints();
+            _remote.ControlThrusters = true;
+            _remote.FlightMode = FlightMode.OneWay;
+            _remote.AddWaypoint(waypoint, "Docking");
+            _remote.SetCollisionAvoidance(false);
+            _remote.SetDockingMode(true);
+            _remote.SetAutoPilotEnabled(true);
+            _state |= State.Translating;
+        }
+
+        private void StopTranslate()
+        {
+            _state &= ~State.Translating;
+            _remote.ControlThrusters = false;
+            _remote.SetAutoPilotEnabled(false);
+        }
+
 
         private void HandleAutoTrigger()
         {
-            _auto = !_auto;
-            _gyros.ForEach(g => g.GyroOverride = _auto);
+            _state ^= State.Alingning;
+            _gyros.ForEach(g => g.GyroOverride = IsAligning);
             _startVector = _targetVector;
         }
 
@@ -140,10 +161,9 @@ namespace IngameScript
         private void Shutdown()
         {
             _targetMatrix = MatrixD.Zero;
-            _auto = false;
-            _translating = false;
-            _gyros.ForEach(g => g.GyroOverride = false); 
-            _allThrusters.ForEach(t => t.ThrustOverridePercentage = 0);
+            _gyros.ForEach(g => g.GyroOverride = false);
+            StopTranslate();
+            _state = State.Standby;
         }
 
         private void HandleMessages()
@@ -206,7 +226,7 @@ namespace IngameScript
 
         void SetGyros()
         {
-            if (!_auto) return;
+            if (!IsAligning) return;
             _gyros.ForEach(g =>
             {
                 g.Pitch = (float)-_gyroVector.X;
@@ -235,9 +255,6 @@ namespace IngameScript
             status += $"Pitch:    {GetAngle(_rotationVector.X, "X")}\n";
             status += $"Yaw:      {GetAngle(_rotationVector.Y, "Y")}\n";
             status += $"Roll:     {GetAngle(_rotationVector.Z, "Z")}\n";
-            status += $"test: {_angle}\n";
-            status += $"test: {_xx}\n";
-            status += $"test: {_upThrusters.Except(_downThrusters).Any()}\n";
             return status;
         }
 
@@ -269,6 +286,16 @@ namespace IngameScript
                 default:
                     return trans + (magnitude < 0 ? "Rgt" : "Lft");
             }
+        }
+
+        enum State
+        {
+            Standby = 0, 
+            Idle = 1, 
+            Clearing = 2, 
+            Alingning = 4, 
+            Translating = 8, 
+            Docking = 16
         }
     }
 }
