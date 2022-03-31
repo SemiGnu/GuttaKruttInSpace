@@ -23,75 +23,93 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         MyIni _ini = new MyIni();
-        IMyDoor _innerDoor;
-        IMyDoor _outerDoor;
-        IMyAirVent _airlockAirvent;
-        IMyTextSurface _airlockLcd;
-
-        bool Depressurized => _airlockAirvent.GetOxygenLevel() < 0.01;
-
-        List<string> IniNames = new List<string> { "innerDoor", "outerDoor", "airlockAirvent", "airlockLcd" };
+        IMyTextSurface _lcd;
+        List<Airlock> _airlocks;
 
         public Program()
-        {
-            var names = GetBlockNames();
-            _innerDoor = GridTerminalSystem.GetBlockWithName(names["innerDoor"]) as IMyDoor;
-            _outerDoor = GridTerminalSystem.GetBlockWithName(names["outerDoor"]) as IMyDoor;
-            _airlockAirvent = GridTerminalSystem.GetBlockWithName(names["airlockAirvent"]) as IMyAirVent;
-            var lcd = GridTerminalSystem.GetBlockWithName(names["airlockLcd"]) as IMyTextSurfaceProvider;
-            _airlockLcd = lcd.GetSurface(0);
-
-            Runtime.UpdateFrequency = UpdateFrequency.Update10;
-        }
-
-        public void Main(string argument, UpdateType updateSource)
-        {
-            SetLockStatus();
-            UpdateDisplay();
-            CloseOpenDoor(_innerDoor);
-            CloseOpenDoor(_outerDoor);
-        }
-
-        private void UpdateDisplay()
-        {
-            var state = GetState();
-            _airlockLcd.BackgroundColor = state == "Ready" ? Color.Aquamarine : Color.Red;
-            var status = $"Airlock Status\nInner door: {_innerDoor.OpenRatio:p0}\nOuter door: {_outerDoor.OpenRatio:p0}\n";
-            status += GetState();
-            _airlockLcd.WriteText(status);
-        }
-
-        public string GetState()
-        {
-            if (_outerDoor.OpenRatio > 0.01) return "Cycling";
-            if (_airlockAirvent.GetOxygenLevel() > 0.01) return "Depressurizing";
-            return "Ready";
-        }
-
-        private void SetLockStatus()
-        {
-            _airlockAirvent.Depressurize = _innerDoor.OpenRatio == 0;
-            _outerDoor.Enabled = Depressurized;
-            _innerDoor.Enabled = _outerDoor.OpenRatio < 0.01;
-            Echo($"{_outerDoor.OpenRatio} {_outerDoor.OpenRatio < 0.01}");
-        }
-
-        private void CloseOpenDoor(IMyDoor door)
-        {
-            if (door.OpenRatio > 0.99)
-            {
-                door.ApplyAction("Open_Off");
-            }
-        }
-
-        Dictionary<string,string> GetBlockNames()
         {
             MyIniParseResult result;
             if (!_ini.TryParse(Me.CustomData, out result))
             {
                 Echo($"CustomData error:\nLine {result}");
             }
-            return IniNames.ToDictionary(n => n, n => _ini.Get("blockNames", n).ToString());
+            _airlocks = _ini.Get("Airlocks", "Names").ToString()
+                .Split(',')
+                .Select(name => new Airlock(name, GridTerminalSystem))
+                .ToList();
+            _lcd = Me.GetSurface(0);
+
+            Runtime.UpdateFrequency = UpdateFrequency.Update10;
+        }
+
+        public void Main(string argument, UpdateType updateSource)
+        {
+            _airlocks.ForEach(a => a.Main());
+            var status = $"Airlock status:\n{string.Join("\n", _airlocks.Select(a => $"{a.Name} - {a.GetState()}"))}";
+            _lcd.WriteText(status);
+        }
+
+
+        public class Airlock
+        {
+            IMyDoor _innerDoor;
+            IMyDoor _outerDoor;
+            IMyAirVent _airlockAirvent;
+            IMyTextSurface _airlockLcd;
+
+            public string Name { get; set; }
+            bool Depressurized => _airlockAirvent.GetOxygenLevel() < 0.01;
+
+            public Airlock(string name, IMyGridTerminalSystem grid)
+            {
+                _innerDoor = grid.GetBlockWithName($"{name} Airlock Inner Door") as IMyDoor;
+                _outerDoor = grid.GetBlockWithName($"{name} Airlock Outer Door") as IMyDoor;
+                _airlockAirvent = grid.GetBlockWithName($"{name} Airlock Air Vent") as IMyAirVent;
+                _airlockLcd = (grid.GetBlockWithName($"{name} Airlock LCD") as IMyTextSurfaceProvider)?.GetSurface(0);
+                if (_innerDoor == null) throw new Exception($"Airlock '{name}' has no Inner Door");
+                if (_outerDoor == null) throw new Exception($"Airlock '{name}' has no Outer Door");
+                if (_airlockAirvent == null) throw new Exception($"Airlock '{name}' has no Air Vent");
+                if (_airlockLcd == null) throw new Exception($"Airlock '{name}' has no LCD");
+                Name = name;
+            }
+            public void Main()
+            {
+                SetLockStatus();
+                UpdateDisplay();
+                CloseOpenDoor(_innerDoor);
+                CloseOpenDoor(_outerDoor);
+            }
+
+            private void UpdateDisplay()
+            {
+                var state = GetState();
+                _airlockLcd.BackgroundColor = state == "Ready" ? Color.Navy : Color.OrangeRed;
+                var status = $"{Name}\nAirlock Status\nInner door: {_innerDoor.OpenRatio:p0}\nOuter door: {_outerDoor.OpenRatio:p0}\n";
+                status += GetState();
+                _airlockLcd.WriteText(status);
+            }
+
+            public string GetState()
+            {
+                if (_outerDoor.OpenRatio > 0.01) return "Cycling";
+                if (_airlockAirvent.GetOxygenLevel() > 0.01) return "Depressurizing";
+                return "Ready";
+            }
+
+            private void SetLockStatus()
+            {
+                _airlockAirvent.Depressurize = _innerDoor.OpenRatio == 0;
+                _outerDoor.Enabled = Depressurized;
+                _innerDoor.Enabled = _outerDoor.OpenRatio < 0.01;
+            }
+
+            private void CloseOpenDoor(IMyDoor door)
+            {
+                if (door.Status == DoorStatus.Open)
+                {
+                    door.CloseDoor();
+                }
+            }
         }
 
     }

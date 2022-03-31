@@ -27,12 +27,10 @@ namespace IngameScript
         IMyTextSurface _dockingLcd;
         IMyUnicastListener _listener;
         List<IMyGyro> _gyros = new List<IMyGyro>();
-        IMyRemoteControl _remote;
 
         MatrixD _connectorMatrix => _connector.WorldMatrix;
         MatrixD _targetMatrix = MatrixD.Zero;
         Vector3D _targetVector = Vector3D.Zero;
-        Vector3D _startVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
         Vector3D _gyroVector = Vector3D.Zero;
 
@@ -45,8 +43,7 @@ namespace IngameScript
 
         double _angle = 0;
 
-        State _state = State.Standby;
-        bool IsAligning => (_state & State.Alingning) > 0;
+        bool _aligning = false;
 
         public Program()
         {
@@ -54,11 +51,6 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType(connectors, c => c.IsParkingEnabled && c.BlockDefinition.SubtypeName != "ConnectorSmall");
             if (connectors.Count != 1) throw new Exception($"Must have one parking connector, actual {connectors.Count}");
             _connector = connectors.First();
-
-            var remotes = new List<IMyRemoteControl>();
-            GridTerminalSystem.GetBlocksOfType(remotes);
-            if (!remotes.Any()) throw new Exception($"Must have a remote control");
-            _remote = remotes.First();
 
             var cockpits = new List<IMyCockpit>();
             GridTerminalSystem.GetBlocksOfType(cockpits, c => c.IsMainCockpit);
@@ -92,50 +84,15 @@ namespace IngameScript
                 CalculateTargetVector();
                 CalculateRotationVector();
                 SetGyros();
-                HandleState();
                 TryDocking();
                 _dockingLcd.WriteText(GetStatus());
             }
         }
 
-        private void HandleState()
-        {
-            if(_state == State.Alingning && _angle < 0.01 )
-            {
-                StartTranslate();
-            }
-            if(_state == (State.Alingning | State.Translating) && _angle > 0.02)
-            {
-                StopTranslate();
-            }
-        }
-
-        private void StartTranslate()
-        {
-            var waypoint = _remote.CubeGrid.WorldMatrix.Translation + _targetVector;
-            _remote.ClearWaypoints();
-            _remote.ControlThrusters = true;
-            _remote.FlightMode = FlightMode.OneWay;
-            _remote.AddWaypoint(waypoint, "Docking");
-            _remote.SetCollisionAvoidance(false);
-            _remote.SetDockingMode(true);
-            _remote.SetAutoPilotEnabled(true);
-            _state |= State.Translating;
-        }
-
-        private void StopTranslate()
-        {
-            _state &= ~State.Translating;
-            _remote.ControlThrusters = false;
-            _remote.SetAutoPilotEnabled(false);
-        }
-
-
         private void HandleAutoTrigger()
         {
-            _state ^= State.Alingning;
-            _gyros.ForEach(g => g.GyroOverride = IsAligning);
-            _startVector = _targetVector;
+            _aligning = !_aligning;
+            _gyros.ForEach(g => g.GyroOverride = _aligning);
         }
 
         private void TryDocking()
@@ -162,8 +119,7 @@ namespace IngameScript
         {
             _targetMatrix = MatrixD.Zero;
             _gyros.ForEach(g => g.GyroOverride = false);
-            StopTranslate();
-            _state = State.Standby;
+            _aligning = false;
         }
 
         private void HandleMessages()
@@ -226,7 +182,7 @@ namespace IngameScript
 
         void SetGyros()
         {
-            if (!IsAligning) return;
+            if (!_aligning) return;
             _gyros.ForEach(g =>
             {
                 g.Pitch = (float)-_gyroVector.X;
@@ -260,7 +216,7 @@ namespace IngameScript
 
         string GetTranslation(double magnitude, string direction)
         {
-            if (Math.Abs(magnitude) < 0.5) return "OK";
+            if (Math.Abs(magnitude) < 0.3) return "OK";
             var trans = $"{Math.Abs(magnitude):0.0} ";
             switch (direction)
             {
@@ -286,16 +242,6 @@ namespace IngameScript
                 default:
                     return trans + (magnitude < 0 ? "Rgt" : "Lft");
             }
-        }
-
-        enum State
-        {
-            Standby = 0, 
-            Idle = 1, 
-            Clearing = 2, 
-            Alingning = 4, 
-            Translating = 8, 
-            Docking = 16
         }
     }
 }

@@ -1,8 +1,5 @@
 ﻿Airlock
 Paste to Custom Data:
 
-[blockNames]
-innerDoor=
-outerDoor=
-airlockAirvent=
-airlockLcd=
+[Airlocks]
+Names=Some Name,Some Other Name

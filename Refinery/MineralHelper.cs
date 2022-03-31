@@ -22,7 +22,7 @@ namespace IngameScript
 {
     partial class Program
     {
-        List<string> _mineralSubtypeIds => new List<string> { "Cobalt", "Gold", "Iron", "Magnesium", "Nickel", "Platinum", "Silicon", "Silver", "Stone", "Uranium" };
+        List<string> _mineralSubtypeIds => new List<string> { "Cobalt", "Gold", "Iron", "Magnesium", "Nickel", "Platinum",   "Silicon", "Silver", "Stone", "Uranium" };
 
         public void UpdateSorters()
         {
