@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestBed", "TestBed\TestBed.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gunship2", "Gunship2\Gunship2.csproj", "{862B0E5A-D163-4DF1-91FC-3DD842E457BD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar", "Hangar\Hangar.csproj", "{2F403C19-F3CD-4988-91B4-06369464C8FC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -52,6 +54,8 @@ Global
 		{A7B44D20-CA8A-4834-9AB3-9D9DEC4BE1BD}.Debug|x64.Build.0 = Debug|x64
 		{862B0E5A-D163-4DF1-91FC-3DD842E457BD}.Debug|x64.ActiveCfg = Debug|x64
 		{862B0E5A-D163-4DF1-91FC-3DD842E457BD}.Debug|x64.Build.0 = Debug|x64
+		{2F403C19-F3CD-4988-91B4-06369464C8FC}.Debug|x64.ActiveCfg = Debug|x64
+		{2F403C19-F3CD-4988-91B4-06369464C8FC}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
