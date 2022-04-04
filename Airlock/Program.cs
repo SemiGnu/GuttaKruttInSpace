@@ -57,6 +57,8 @@ namespace IngameScript
             IMyAirVent _airlockAirvent;
             IMyTextSurface _airlockLcd;
 
+            DateTime _lastOpened = DateTime.MinValue;
+
             public string Name { get; set; }
             bool Depressurized => _airlockAirvent.GetOxygenLevel() < 0.01;
 
@@ -84,7 +86,7 @@ namespace IngameScript
             {
                 var state = GetState();
                 _airlockLcd.BackgroundColor = state == "Ready" ? Color.Navy : Color.OrangeRed;
-                var status = $"{Name}\nAirlock Status\nInner door: {_innerDoor.OpenRatio:p0}\nOuter door: {_outerDoor.OpenRatio:p0}\n";
+                var status = $"{Name}\nAirlock Status\nInner door: {_innerDoor.Status}\nOuter door: {_outerDoor.Status}\n";
                 status += GetState();
                 _airlockLcd.WriteText(status);
             }
@@ -105,7 +107,11 @@ namespace IngameScript
 
             private void CloseOpenDoor(IMyDoor door)
             {
-                if (door.Status == DoorStatus.Open)
+                if(door.Status == DoorStatus.Opening)
+                {
+                    _lastOpened = DateTime.Now;
+                }
+                if (DateTime.Now > _lastOpened.AddSeconds(1))
                 {
                     door.CloseDoor();
                 }

@@ -37,6 +37,7 @@ namespace IngameScript
         string _targetName;
 
         string _dockingBroadcastTag = "DOCKING_LISTENER";
+        string _hangarBroadcastTag = "HANGAR_LISTENER";
         string _unicastTag = "DOCKING_INFORMATION";
 
         double _dockingOffset = 1.85;
@@ -70,6 +71,10 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            if ((updateSource & UpdateType.Trigger) > 0 && argument == "Toggle Hangar")
+            {
+                HandleHangarTrigger();
+            }
             if ((updateSource & UpdateType.Trigger) > 0 && argument == "Toggle Docking")
             {
                 HandleDockingTrigger();
@@ -103,6 +108,11 @@ namespace IngameScript
                 _connector.Connect();
                 Shutdown();
             }
+        }
+
+        private void HandleHangarTrigger()
+        {
+            IGC.SendBroadcastMessage(_hangarBroadcastTag, _cockpit.WorldMatrix);
         }
 
         private void HandleDockingTrigger()

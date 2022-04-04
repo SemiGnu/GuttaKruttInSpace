@@ -39,7 +39,7 @@ namespace IngameScript
             _lcd = Me.GetSurface(0);
 
             _connectors = new List<IMyShipConnector>();
-            GridTerminalSystem.GetBlocksOfType(_connectors);
+            GridTerminalSystem.GetBlocksOfType(_connectors, c => c.CubeGrid == Me.CubeGrid);
 
             _listener = IGC.RegisterBroadcastListener(_broadcastTag);
             _listener.SetMessageCallback(_broadcastTag);
