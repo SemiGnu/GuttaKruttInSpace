@@ -27,7 +27,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gunship2", "Gunship2\Gunshi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar", "Hangar\Hangar.csproj", "{2F403C19-F3CD-4988-91B4-06369464C8FC}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Helpers", "Sprites\Helpers.shproj", "{61EBA249-19F3-48B6-A25B-A4CEE90168BA}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Sprites\Sprites.projitems*{041953cb-bdc7-4c1e-b1ef-09264ee37b20}*SharedItemsImports = 4
+		Sprites\Sprites.projitems*{61eba249-19f3-48b6-a25b-a4cee90168ba}*SharedItemsImports = 13
+		Sprites\Sprites.projitems*{862b0e5a-d163-4df1-91fc-3dd842e457bd}*SharedItemsImports = 4
+		Sprites\Sprites.projitems*{a7b44d20-ca8a-4834-9ab3-9d9dec4be1bd}*SharedItemsImports = 4
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 	EndGlobalSection

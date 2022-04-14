@@ -24,7 +24,7 @@ namespace IngameScript
     {
         IMyCockpit _cockpit;
         IMyTextSurface _cockpitLcd1;
-        IMyTextSurface _cockpitLcd2;
+        IMyTextSurface _hudLcd;
         RectangleF _viewport;
 
         uint _tick = 0;
@@ -38,25 +38,60 @@ namespace IngameScript
             if (cockpits.Count != 1) throw new Exception($"Must have one main cockpit, actual {cockpits.Count}");
             _cockpit = cockpits.First();
             _cockpitLcd1 = _cockpit.GetSurface(1);
-            _cockpitLcd2 = _cockpit.GetSurface(0);
+            _hudLcd = _cockpit.GetSurface(0);
 
             _viewport = new RectangleF(
-                (_cockpitLcd2.TextureSize - _cockpitLcd2.SurfaceSize) / 2f,
-                _cockpitLcd2.SurfaceSize);
+                (_hudLcd.TextureSize - _hudLcd.SurfaceSize) / 2f,
+                _hudLcd.SurfaceSize);
 
-
-
-            Runtime.UpdateFrequency = UpdateFrequency.Update1;
+            Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }
 
         public void Main(string argument, UpdateType updateSource)
+        {
+            //UpdateCursor();
+            var frame = _hudLcd.DrawFrame();
+
+
+            var circle = new MySprite
+            {
+                Color = Color.Black,
+                Size = new Vector2(100, 100),
+                Position = _viewport.Position + _viewport.Size / 2f,
+                Data = "Triangle",
+                RotationOrScale = (float) Math.PI / 4,
+                Alignment = TextAlignment.CENTER,
+            };
+            frame.Add(circle);
+
+
+            var bar = new MyBarSprite
+            {
+                Position = _viewport.Position + _viewport.Size / 2f,
+                Size = new Vector2(100, 20),
+                Color = Color.White,
+                Ratio = (_tick++ % 20) / 20f,
+                Rotation = (float) Math.PI / 4,
+            };
+
+            var sprite = (MySprite)bar;
+
+            frame.Add(bar);
+
+            frame.Dispose();
+
+
+            _cockpitLcd1.WriteText($"{sprite.Size}\n{sprite.Position}");
+        }
+
+        private void UpdateCursor()
         {
             _tick++;
             UpdatePos();
 
             if (_tick % 10 != 0) return;
 
-            var frame = _cockpitLcd2.DrawFrame();
+            var frame = _hudLcd.DrawFrame();
             DrawCursor(ref frame);
             frame.Dispose();
 
