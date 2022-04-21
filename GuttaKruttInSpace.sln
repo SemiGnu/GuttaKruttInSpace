@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillCrane", "DrillCrane\Dr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Airlock", "Airlock\Airlock.csproj", "{CDC89051-04CD-4C2A-A530-4A2B7E4A240D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DrillRig2", "DrillRig2\DrillRig2.csproj", "{83D64592-DE22-41FB-875F-217F473E4725}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CargoComputer", "DrillRig2\CargoComputer.csproj", "{83D64592-DE22-41FB-875F-217F473E4725}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gunship", "Gunship\Gunship.csproj", "{041953CB-BDC7-4C1E-B1EF-09264EE37B20}"
 EndProject
@@ -33,6 +33,7 @@ Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Sprites\Sprites.projitems*{041953cb-bdc7-4c1e-b1ef-09264ee37b20}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{61eba249-19f3-48b6-a25b-a4cee90168ba}*SharedItemsImports = 13
+		Sprites\Sprites.projitems*{83d64592-de22-41fb-875f-217f473e4725}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{862b0e5a-d163-4df1-91fc-3dd842e457bd}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{a7b44d20-ca8a-4834-9ab3-9d9dec4be1bd}*SharedItemsImports = 4
 	EndGlobalSection

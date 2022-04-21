@@ -22,9 +22,10 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        List<IMyCargoContainer> _containers = new List<IMyCargoContainer>();
+        MyIni _ini = new MyIni();
+        List<IMyInventoryOwner> _containers = new List<IMyInventoryOwner>();
         List<IMyGasTank> _o2Tanks = new List<IMyGasTank>();
-        IMyTextSurface _cargoLcd;
+        List<IMyTextSurface> _cargoLcds = new List<IMyTextSurface>();
 
         float _currentCargo => _containers.Select(c => (float) c.GetInventory(0).CurrentVolume).Sum();
         float _maxCargo;
@@ -38,32 +39,38 @@ namespace IngameScript
 
         public Program()
         {
-            GridTerminalSystem.GetBlocksOfType(_containers, c => c.CubeGrid == Me.CubeGrid);
+            GridTerminalSystem.GetBlocksOfType(_containers, c => ((IMyCubeBlock)c).CubeGrid == Me.CubeGrid && !(c is IMyPowerProducer) && !(c is IMyGasTank));
             GridTerminalSystem.GetBlocksOfType(_o2Tanks, t => t.CubeGrid == Me.CubeGrid);
+
+            
 
             _maxCargo = _containers.Select(c => (float)c.GetInventory(0).MaxVolume).Sum();
             _maxO2 = _o2Tanks.Select(t => t.Capacity).Sum();
 
-            var cockpits = new List<IMyShipController>();
-            GridTerminalSystem.GetBlocksOfType(cockpits, c => c.IsMainCockpit && c.CubeGrid == Me.CubeGrid);
-            _cargoLcd = (cockpits.First() as IMyCockpit).GetSurface(2);
+            var surfaceProviders = new List<IMyTextSurfaceProvider>();
+            GridTerminalSystem.GetBlocksOfType(surfaceProviders, sp => ((IMyTerminalBlock)sp).CustomData.Contains("[CargoComputer]"));
+            foreach (var sp in surfaceProviders)
+            {
+                var surfaceIndex = CustomDataHelper.GetInt(((IMyTerminalBlock)sp).CustomData, "CargoComputer", "Surface");
+                _cargoLcds.Add(sp.GetSurface(surfaceIndex));
+            }
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
-            Echo($"{_currentCargo}\n{_maxCargo}");
+            //Echo($"{_currentCargo}\n{_maxCargo}");
             UpdateCargoLcd();
         }
 
         private void UpdateCargoLcd()
         {
-            var status = $"Cargo Bay - 02:{$"{_currentO2 / _maxO2:p0}".PadLeft(7)}\n\n";
+            var status = $"Cargo Bay - O2:{$"{_currentO2 / _maxO2:p0}".PadLeft(7)}\n\n";
             status += GetFillBar(_currentCargo / _maxCargo);
             status += GetItemLines();
-
-            _cargoLcd.WriteText(status, false);
+            Echo(status);
+            _cargoLcds.ForEach(l => l.WriteText(status));
         }
 
 
@@ -80,7 +87,7 @@ namespace IngameScript
             _allItems = new List<MyInventoryItem>();
             foreach(var container in _containers)
             {
-                container.GetInventory().GetItems(_allItems);
+                container.GetInventory(0).GetItems(_allItems);
             }
 
             var groupedItems = _allItems.GroupBy(i => i.Type).ToDictionary(k => k.Key, v => v.Select(i => i.Amount.ToIntSafe()).Sum());
