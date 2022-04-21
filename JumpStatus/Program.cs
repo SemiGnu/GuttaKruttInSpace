@@ -25,30 +25,30 @@ namespace IngameScript
         List<IMyJumpDrive> _jumpDrives = new List<IMyJumpDrive>();
         IMyTextSurface _jumpLcd;
 
-        decimal _maxPower;
-        decimal _totalPower;
+        float _maxPower;
+        float _totalPower;
 
-        const decimal JumpdrivePower = 3e6M;
+        const float JumpdrivePower = 3e6f;
 
         public Program()
         {
             GridTerminalSystem.GetBlocksOfType(_jumpDrives);
             _maxPower = _jumpDrives.Count() * JumpdrivePower;
-            _jumpLcd = (GridTerminalSystem.GetBlockWithName("LCD Jump") as IMyTextSurfaceProvider).GetSurface(0);
+            _jumpLcd = (GridTerminalSystem.GetBlockWithName("Control Seat") as IMyTextSurfaceProvider).GetSurface(4);
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }
 
         void Main()
         {
-            _totalPower = _jumpDrives.Select(GetPowerFromJumpdrive).Sum();
+            _totalPower = _jumpDrives.Select(j => j.CurrentStoredPower).Sum();
             PrintStatus();
         }
 
         private void PrintStatus()
         {
-            var status = $"Total Amount \n of Jump Drives: {_jumpDrives.Count}\n\n";
-            status += $"Current Power: {_totalPower:0} Wh\n\n";
-            status += $"Maximum Power: {_maxPower:0} Wh\n\n";
+            var status = $"Total Amount \n of Jump Drives: {_jumpDrives.Count}\n";
+            status += $"Current Power: {_totalPower:0} Wh\n";
+            status += $"Maximum Power: {_maxPower:0} Wh\n";
             status += $"Charge: {_totalPower / _maxPower:p0}";
             _jumpLcd.WriteText(status);
         }

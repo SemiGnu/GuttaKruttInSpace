@@ -217,7 +217,7 @@ namespace IngameScript
                 Type = SpriteType.TEXTURE,
                 Data = "Triangle",
                 Position = _hudViewport.Position + _hudViewport.Size / 2f + new Vector2(-55, 0),
-                Size = new Vector2(40, _hudViewport.Height),
+                Size = new Vector2(40, _hudViewport.Height * 1.2f),
                 Color = Color.Black,
                 Alignment = TextAlignment.CENTER
             };
@@ -228,7 +228,7 @@ namespace IngameScript
                 Type = SpriteType.TEXTURE,
                 Data = "Triangle",
                 Position = _hudViewport.Position + _hudViewport.Size / 2f + new Vector2(55, 0),
-                Size = new Vector2(40, _hudViewport.Height),
+                Size = new Vector2(40, _hudViewport.Height * 1.2f),
                 Color = Color.Black,
                 Alignment = TextAlignment.CENTER
             };

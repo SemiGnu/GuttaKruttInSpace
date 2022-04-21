@@ -22,14 +22,19 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+        MyIni _ini = new MyIni();
+
         IMyShipConnector _connector;
-        IMyCockpit _cockpit;
-        IMyTextSurface _dockingLcd;
-        IMyUnicastListener _listener;
+        List<IMyCockpit> _cockpits = new List<IMyCockpit>();
+        List<IMyTextSurface> _dockingLcds = new List<IMyTextSurface>();
         List<IMyGyro> _gyros = new List<IMyGyro>();
+        IMyUnicastListener _listener;
+
+        IMyCockpit ActiveCockpit => _cockpits.FirstOrDefault(c => c.IsUnderControl) ?? _cockpits.First();
 
         MatrixD _connectorMatrix => _connector.WorldMatrix;
         MatrixD _targetMatrix = MatrixD.Zero;
+        QuaternionD _targetQuaternion = QuaternionD.Identity;
         Vector3D _targetVector = Vector3D.Zero;
         Vector3D _rotationVector = Vector3D.Zero;
         Vector3D _gyroVector = Vector3D.Zero;
@@ -53,11 +58,13 @@ namespace IngameScript
             if (connectors.Count != 1) throw new Exception($"Must have one parking connector, actual {connectors.Count}");
             _connector = connectors.First();
 
-            var cockpits = new List<IMyCockpit>();
-            GridTerminalSystem.GetBlocksOfType(cockpits, c => c.IsMainCockpit);
-            if (cockpits.Count != 1) throw new Exception($"Must have one main cockpit, actual {cockpits.Count}");
-            _cockpit = cockpits.First();
-            _dockingLcd = _cockpit.GetSurface(0);
+            GridTerminalSystem.GetBlocksOfType(_cockpits, c => c.CustomData.Contains("DockingComputer"));
+            if (!_cockpits.Any()) throw new Exception($"Must have at least one cockpit with [DockingComputer] custom data.");
+            foreach (var c in _cockpits)
+            {
+                var surfaceIndex = _ini.Get("DockingComputer", "Surface").ToInt32();
+                _dockingLcds.Add(c.GetSurface(surfaceIndex));
+            }
 
             GridTerminalSystem.GetBlocksOfType(_gyros);
             if (!_gyros.Any()) throw new Exception($"Must have a gyro");
@@ -90,8 +97,14 @@ namespace IngameScript
                 CalculateRotationVector();
                 SetGyros();
                 TryDocking();
-                _dockingLcd.WriteText(GetStatus());
+                var status = GetStatus();
+                _dockingLcds.ForEach(l => l.WriteText(status));
             }
+        }
+
+        private void Save()
+        {
+            _gyros.ForEach(g => g.GyroOverride = false);
         }
 
         private void HandleAutoTrigger()
@@ -112,7 +125,7 @@ namespace IngameScript
 
         private void HandleHangarTrigger()
         {
-            IGC.SendBroadcastMessage(_hangarBroadcastTag, _cockpit.WorldMatrix);
+            IGC.SendBroadcastMessage(_hangarBroadcastTag, ActiveCockpit.WorldMatrix);
         }
 
         private void HandleDockingTrigger()
@@ -148,6 +161,7 @@ namespace IngameScript
                             _targetName = data.Item1;
                             _targetMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
                             _targetMatrix.Translation = newMatrix.Translation;
+                            _targetQuaternion = QuaternionD.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
                         }
                     }
                 }
@@ -163,20 +177,19 @@ namespace IngameScript
         {
             if (_targetMatrix == MatrixD.Zero) return;
             var distance = _targetMatrix.Translation - _connectorMatrix.Translation;
-            _targetVector = Vector3D.TransformNormal(distance, MatrixD.Transpose(_cockpit.WorldMatrix));
+            _targetVector = Vector3D.TransformNormal(distance, MatrixD.Transpose(ActiveCockpit.WorldMatrix));
         }
 
         private void CalculateRotationVector()
         {
             if (_targetMatrix == MatrixD.Zero) return;
-            QuaternionD target = QuaternionD.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
             QuaternionD current = QuaternionD.CreateFromRotationMatrix(_connectorMatrix.GetOrientation());
-            QuaternionD rotation = target / current;
+            QuaternionD rotation = _targetQuaternion / current;
             rotation.Normalize();
             Vector3D axis;
             rotation.GetAxisAngle(out axis, out _angle);
 
-            MatrixD worldToCockpit = MatrixD.Invert(_cockpit.WorldMatrix.GetOrientation());
+            MatrixD worldToCockpit = MatrixD.Invert(ActiveCockpit.WorldMatrix.GetOrientation());
             MatrixD worldToGyro = MatrixD.Invert(_gyros.First().WorldMatrix.GetOrientation());
             Vector3D localAxis = Vector3D.Transform(axis, worldToCockpit);
             Vector3D localGyroAxis = Vector3D.Transform(axis, worldToGyro);
@@ -195,7 +208,7 @@ namespace IngameScript
             if (!_aligning) return;
             _gyros.ForEach(g =>
             {
-                g.Pitch = (float)-_gyroVector.X;
+                g.Pitch = (float) -_gyroVector.X;
                 g.Yaw = (float)-_gyroVector.Y;
                 g.Roll = (float)-_gyroVector.Z;
             });
@@ -214,13 +227,14 @@ namespace IngameScript
                 status += "Offline";
                 return status;
             }
-            status += $"Target:   {_targetName}\n";
-            status += $"Tanslate: {GetTranslation(_targetVector.X,"X")}\n";
-            status += $"Tanslate: {GetTranslation(_targetVector.Y,"Y")}\n";
-            status += $"Tanslate: {GetTranslation(_targetVector.Z,"Z")}\n";
-            status += $"Pitch:    {GetAngle(_rotationVector.X, "X")}\n";
-            status += $"Yaw:      {GetAngle(_rotationVector.Y, "Y")}\n";
-            status += $"Roll:     {GetAngle(_rotationVector.Z, "Z")}\n";
+            status += $"Target:\n {_targetName}\n";
+            //status += $"{_gyroVector.X:0.00} {_gyroVector.Y:0.00} {_gyroVector.Z:0.00}\n";
+            status += $"Translate: {GetTranslation(_targetVector.X,"X")}\n";
+            status += $"Translate: {GetTranslation(_targetVector.Y,"Y")}\n";
+            status += $"Translate: {GetTranslation(_targetVector.Z,"Z")}\n";
+            status += $"Pitch:     {GetAngle(_rotationVector.X, "X")}\n";
+            status += $"Yaw:       {GetAngle(_rotationVector.Y, "Y")}\n";
+            status += $"Roll:      {GetAngle(_rotationVector.Z, "Z")}\n";
             return status;
         }
 

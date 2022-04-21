@@ -92,11 +92,11 @@ namespace IngameScript
 
         public class Hangar
         {
-            List<IMyAirtightHangarDoor> _hangarDoors = new List<IMyAirtightHangarDoor>();
-            List<IMyAirVent> _hangarAirVents = new List<IMyAirVent>();
             List<IMyDoor> _hangarSideDoors = new List<IMyDoor>();
+            List<IMyAirVent> _hangarAirVents = new List<IMyAirVent>();
             List<IMyTextSurface> _hangarLcds = new List<IMyTextSurface>();
             List<IMyLightingBlock> _hangarLights = new List<IMyLightingBlock>();
+            List<IMyAirtightHangarDoor> _hangarDoors = new List<IMyAirtightHangarDoor>();
 
             public string Name { get; set; }
             public Vector3 Translation { get; private set; }
@@ -119,11 +119,12 @@ namespace IngameScript
             {
                 Name = name;
                 Status = (HangarStatus) Enum.Parse(typeof(HangarStatus),status);
-                grid.GetBlockGroupWithName($"{name} Hangar Doors").GetBlocksOfType(_hangarDoors);
-                grid.GetBlockGroupWithName($"{name} Hangar Air Vents").GetBlocksOfType(_hangarAirVents);
-                grid.GetBlockGroupWithName($"{name} Hangar Side Doors").GetBlocksOfType(_hangarSideDoors);
-                grid.GetBlockGroupWithName($"{name} Hangar LCDs").GetBlocksOfType(_hangarLcds);
-                grid.GetBlockGroupWithName($"{name} Hangar Warning Lights").GetBlocksOfType(_hangarLights);
+                var group = grid.GetBlockGroupWithName($"{name} Hangar Control");
+                group.GetBlocksOfType(_hangarDoors);
+                group.GetBlocksOfType(_hangarAirVents);
+                group.GetBlocksOfType(_hangarSideDoors, d => !(d is IMyAirtightHangarDoor));
+                group.GetBlocksOfType(_hangarLcds);
+                group.GetBlocksOfType(_hangarLights);
                 Translation = _hangarDoors.First().WorldMatrix.Translation;
             }
 
