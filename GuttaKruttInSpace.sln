@@ -57,6 +57,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Elevator", "Elevator\Elevat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule", "Capsule\Capsule.csproj", "{AC961D0D-68B4-4C0E-BA80-E09984D964F2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CapsuleHub", "CapsuleHub\CapsuleHub.csproj", "{97CA114C-C8A3-4D63-B94A-928C3F62FD07}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		FiniteStateMachine\FiniteStateMachine.projitems*{040cea86-9064-441a-b084-30f28d47e111}*SharedItemsImports = 4
@@ -126,6 +128,8 @@ Global
 		{67490009-BB36-4A01-80D8-020A5B480DB5}.Debug|x64.Build.0 = Debug|x64
 		{AC961D0D-68B4-4C0E-BA80-E09984D964F2}.Debug|x64.ActiveCfg = Debug|x64
 		{AC961D0D-68B4-4C0E-BA80-E09984D964F2}.Debug|x64.Build.0 = Debug|x64
+		{97CA114C-C8A3-4D63-B94A-928C3F62FD07}.Debug|x64.ActiveCfg = Debug|x64
+		{97CA114C-C8A3-4D63-B94A-928C3F62FD07}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
