@@ -36,12 +36,13 @@ namespace IngameScript
             {
                 Echo($"CustomData error:\nLine {result}");
             }
-            var savedHangars = Storage.Split(new[] { ';' },StringSplitOptions.RemoveEmptyEntries).Select(s => s.Split(',')).ToDictionary(h => h[0], h => h[1]);
+            var savedHangars = Storage?.Split(new[] { ';' },StringSplitOptions.RemoveEmptyEntries).Select(s => s.Split(',')).ToDictionary(h => h[0], h => h[1]);
             _hangars = _ini.Get("Hangars", "Names").ToString()
                 .Split(',')
                 .Select(name => {
-                    string status;
-                    return new Hangar(name, GridTerminalSystem, savedHangars.TryGetValue(name, out status) ? status : "Closed");
+                    string status = null;
+                    savedHangars?.TryGetValue(name, out status);
+                    return new Hangar(name, GridTerminalSystem, status ?? "Closed");
                 })
                 .ToList();
             _lcd = Me.GetSurface(0);
@@ -64,7 +65,7 @@ namespace IngameScript
             {
                 HandleMessages();
                 _hangars.ForEach(h => h.Main());
-                var status = $"Airlock status:\n{string.Join("\n", _hangars.Select(h => $"{h.Name} - {h.Status}"))}";
+                var status = $"Hangar status:\n{string.Join("\n", _hangars.Select(h => $"{h.Name} - {h.Status}"))}";
                 _lcd.WriteText(status);
             }
         }
@@ -92,6 +93,7 @@ namespace IngameScript
 
         public class Hangar
         {
+            List<IMyGasTank> _o2Tanks = new List<IMyGasTank>();
             List<IMyDoor> _hangarSideDoors = new List<IMyDoor>();
             List<IMyAirVent> _hangarAirVents = new List<IMyAirVent>();
             List<IMyTextSurface> _hangarLcds = new List<IMyTextSurface>();
@@ -104,8 +106,9 @@ namespace IngameScript
             {
                 Opening, Open, Closing, Closed
             }
+            // || _o2Tanks.All(o => o.FilledRatio > 0.99)
             DoorStatus _doorStatus => _hangarDoors.First().Status;
-            VentStatus _ventStatus => _hangarAirVents.First().GetOxygenLevel() == 0 ? VentStatus.Depressurized : _hangarAirVents.First().Status;
+            VentStatus _ventStatus => _hangarAirVents.First().GetOxygenLevel() == 0  ? VentStatus.Depressurized : _hangarAirVents.First().Status;
             public HangarStatus Status { get; private set; }
             bool ShouldDepressurize => Status == HangarStatus.Opening && _ventStatus == VentStatus.Pressurized;
             bool ShouldPressurize => Status == HangarStatus.Closing && _doorStatus == DoorStatus.Closed;
@@ -125,6 +128,7 @@ namespace IngameScript
                 group.GetBlocksOfType(_hangarSideDoors, d => !(d is IMyAirtightHangarDoor));
                 group.GetBlocksOfType(_hangarLcds);
                 group.GetBlocksOfType(_hangarLights);
+                grid.GetBlocksOfType(_o2Tanks, o => o.BlockDefinition.SubtypeId.Contains("Oxy"));
                 Translation = _hangarDoors.First().WorldMatrix.Translation;
             }
 

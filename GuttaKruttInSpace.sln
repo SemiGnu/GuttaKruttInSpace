@@ -29,13 +29,50 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar", "Hangar\Hangar.csp
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Helpers", "Sprites\Helpers.shproj", "{61EBA249-19F3-48B6-A25B-A4CEE90168BA}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "PID", "PID\PID.shproj", "{68FBC0A8-84C0-435D-90D0-5463900BFBD6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolarFinder", "SolarFinder\SolarFinder.csproj", "{0605AEFD-A764-41A7-82DF-604A56D11718}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MiningArm", "MiningArm\MiningArm.csproj", "{9C3E9762-2689-40B4-8DBE-04B3430EDB5C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Recharger", "Recharger\Recharger.csproj", "{94B254BB-65C8-4019-8128-41A8CDCA4938}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeepCoreMiner", "DeepCoreMiner\DeepCoreMiner.csproj", "{539EA9A3-82BF-4D86-B427-64D42194D230}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlueprintToProduction", "BlueprintToProduction\BlueprintToProduction.csproj", "{BF54C3DB-8C0E-4A55-942E-BDC7A3FCEB34}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "FiniteStateMachine", "FiniteStateMachine\FiniteStateMachine.shproj", "{731B2295-EE5F-4328-8E56-619ADDA5FC90}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElevatorAirlock", "ElevatorAirlock\ElevatorAirlock.csproj", "{040CEA86-9064-441A-B084-30F28D47E111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManualConnector", "ManualConnector\ManualConnector.csproj", "{1572DDF9-40F5-4D09-9221-BDC87911CF44}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoConnector", "AutoConnector\AutoConnector.csproj", "{B9B04FA5-837C-43E4-A6BD-0F859151A55D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoConnectorHub", "AutoConnectorHub\AutoConnectorHub.csproj", "{AC0350A7-BC4B-4649-A291-541D4727BF33}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tower", "Tower\Tower.csproj", "{81CED80B-988C-4E26-BB35-E2FD5A940DD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Elevator", "Elevator\Elevator.csproj", "{67490009-BB36-4A01-80D8-020A5B480DB5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capsule", "Capsule\Capsule.csproj", "{AC961D0D-68B4-4C0E-BA80-E09984D964F2}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		FiniteStateMachine\FiniteStateMachine.projitems*{040cea86-9064-441a-b084-30f28d47e111}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{041953cb-bdc7-4c1e-b1ef-09264ee37b20}*SharedItemsImports = 4
+		FiniteStateMachine\FiniteStateMachine.projitems*{539ea9a3-82bf-4d86-b427-64d42194d230}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{61eba249-19f3-48b6-a25b-a4cee90168ba}*SharedItemsImports = 13
+		PID\PID.projitems*{68fbc0a8-84c0-435d-90d0-5463900bfbd6}*SharedItemsImports = 13
+		FiniteStateMachine\FiniteStateMachine.projitems*{731b2295-ee5f-4328-8e56-619adda5fc90}*SharedItemsImports = 13
+		FiniteStateMachine\FiniteStateMachine.projitems*{81ced80b-988c-4e26-bb35-e2fd5a940dd0}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{83d64592-de22-41fb-875f-217f473e4725}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{862b0e5a-d163-4df1-91fc-3dd842e457bd}*SharedItemsImports = 4
+		PID\PID.projitems*{a34b5748-459b-401d-9c01-13fbacbf9127}*SharedItemsImports = 4
+		Sprites\Sprites.projitems*{a34b5748-459b-401d-9c01-13fbacbf9127}*SharedItemsImports = 4
 		Sprites\Sprites.projitems*{a7b44d20-ca8a-4834-9ab3-9d9dec4be1bd}*SharedItemsImports = 4
+		FiniteStateMachine\FiniteStateMachine.projitems*{ac961d0d-68b4-4c0e-ba80-e09984d964f2}*SharedItemsImports = 4
+		PID\PID.projitems*{ac961d0d-68b4-4c0e-ba80-e09984d964f2}*SharedItemsImports = 4
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -65,6 +102,30 @@ Global
 		{862B0E5A-D163-4DF1-91FC-3DD842E457BD}.Debug|x64.Build.0 = Debug|x64
 		{2F403C19-F3CD-4988-91B4-06369464C8FC}.Debug|x64.ActiveCfg = Debug|x64
 		{2F403C19-F3CD-4988-91B4-06369464C8FC}.Debug|x64.Build.0 = Debug|x64
+		{0605AEFD-A764-41A7-82DF-604A56D11718}.Debug|x64.ActiveCfg = Debug|x64
+		{0605AEFD-A764-41A7-82DF-604A56D11718}.Debug|x64.Build.0 = Debug|x64
+		{9C3E9762-2689-40B4-8DBE-04B3430EDB5C}.Debug|x64.ActiveCfg = Debug|x64
+		{9C3E9762-2689-40B4-8DBE-04B3430EDB5C}.Debug|x64.Build.0 = Debug|x64
+		{94B254BB-65C8-4019-8128-41A8CDCA4938}.Debug|x64.ActiveCfg = Debug|x64
+		{94B254BB-65C8-4019-8128-41A8CDCA4938}.Debug|x64.Build.0 = Debug|x64
+		{539EA9A3-82BF-4D86-B427-64D42194D230}.Debug|x64.ActiveCfg = Debug|x64
+		{539EA9A3-82BF-4D86-B427-64D42194D230}.Debug|x64.Build.0 = Debug|x64
+		{BF54C3DB-8C0E-4A55-942E-BDC7A3FCEB34}.Debug|x64.ActiveCfg = Debug|x64
+		{BF54C3DB-8C0E-4A55-942E-BDC7A3FCEB34}.Debug|x64.Build.0 = Debug|x64
+		{040CEA86-9064-441A-B084-30F28D47E111}.Debug|x64.ActiveCfg = Debug|x64
+		{040CEA86-9064-441A-B084-30F28D47E111}.Debug|x64.Build.0 = Debug|x64
+		{1572DDF9-40F5-4D09-9221-BDC87911CF44}.Debug|x64.ActiveCfg = Debug|x64
+		{1572DDF9-40F5-4D09-9221-BDC87911CF44}.Debug|x64.Build.0 = Debug|x64
+		{B9B04FA5-837C-43E4-A6BD-0F859151A55D}.Debug|x64.ActiveCfg = Debug|x64
+		{B9B04FA5-837C-43E4-A6BD-0F859151A55D}.Debug|x64.Build.0 = Debug|x64
+		{AC0350A7-BC4B-4649-A291-541D4727BF33}.Debug|x64.ActiveCfg = Debug|x64
+		{AC0350A7-BC4B-4649-A291-541D4727BF33}.Debug|x64.Build.0 = Debug|x64
+		{81CED80B-988C-4E26-BB35-E2FD5A940DD0}.Debug|x64.ActiveCfg = Debug|x64
+		{81CED80B-988C-4E26-BB35-E2FD5A940DD0}.Debug|x64.Build.0 = Debug|x64
+		{67490009-BB36-4A01-80D8-020A5B480DB5}.Debug|x64.ActiveCfg = Debug|x64
+		{67490009-BB36-4A01-80D8-020A5B480DB5}.Debug|x64.Build.0 = Debug|x64
+		{AC961D0D-68B4-4C0E-BA80-E09984D964F2}.Debug|x64.ActiveCfg = Debug|x64
+		{AC961D0D-68B4-4C0E-BA80-E09984D964F2}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

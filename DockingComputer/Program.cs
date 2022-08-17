@@ -28,6 +28,9 @@ namespace IngameScript
         List<IMyCockpit> _cockpits = new List<IMyCockpit>();
         List<IMyTextSurface> _dockingLcds = new List<IMyTextSurface>();
         List<IMyGyro> _gyros = new List<IMyGyro>();
+        List<IMyThrust> _thrusters = new List<IMyThrust>();
+        List<IMyThrust>[] _thrusterArray = new List<IMyThrust>[6];
+
         IMyUnicastListener _listener;
 
         IMyCockpit ActiveCockpit => _cockpits.FirstOrDefault(c => c.IsUnderControl) ?? _cockpits.First();
@@ -46,10 +49,19 @@ namespace IngameScript
         string _unicastTag = "DOCKING_INFORMATION";
 
         double _dockingOffset = 1.85;
+        //double _dockingOffset = 15;
 
         double _angle = 0;
 
         bool _aligning = false;
+        bool _inGravity = false;
+
+        string _echo;
+
+        static double _pidTimestep = 1.0 / 6.0;
+        PID _yPid = new PID(1,0,1, _pidTimestep);
+        PID _xPid = new PID(1,0,1, _pidTimestep);
+        PID _zPid = new PID(1,0,1, _pidTimestep);
 
         public Program()
         {
@@ -62,13 +74,25 @@ namespace IngameScript
             if (!_cockpits.Any()) throw new Exception($"Must have at least one cockpit with [DockingComputer] custom data.");
             foreach (var c in _cockpits)
             {
-                var surfaceIndex = _ini.Get("DockingComputer", "Surface").ToInt32();
+                var surfaceIndex = CustomDataHelper.GetInt(c.CustomData, "DockingComputer", "Surface");
                 _dockingLcds.Add(c.GetSurface(surfaceIndex));
             }
 
             GridTerminalSystem.GetBlocksOfType(_gyros);
             if (!_gyros.Any()) throw new Exception($"Must have a gyro");
             _gyros = _gyros.GroupBy(g => g.Orientation.Forward).OrderBy(g => g.Count()).First().ToList();
+
+
+            _thrusterArray = _thrusterArray.Select(ta => new List<IMyThrust>()).ToArray();
+            var allThrusters = new List<IMyThrust>();
+            GridTerminalSystem.GetBlocksOfType(allThrusters);
+            var cDir = _cockpits.First().Orientation.Forward;
+            foreach (var thruster in allThrusters)
+            {
+                var thrusterDirection = ActiveCockpit.Orientation.TransformDirectionInverse(thruster.Orientation.Forward);
+                //var test2 = thruster.Orientation.TransformDirectionInverse(_cockpits.First().Orientation.Forward);
+                _thrusterArray[(int)thrusterDirection].Add(thruster);
+            }
 
             _listener = IGC.UnicastListener;
 
@@ -78,6 +102,7 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
+            _echo = "";
             if ((updateSource & UpdateType.Trigger) > 0 && argument == "Toggle Hangar")
             {
                 HandleHangarTrigger();
@@ -92,25 +117,35 @@ namespace IngameScript
             }
             if ((updateSource & UpdateType.Update10) > 0)
             {
+                _echo += $"aligning: {_aligning}\n";
                 HandleMessages();
                 CalculateTargetVector();
                 CalculateRotationVector();
                 SetGyros();
+                SetIndicators();
                 TryDocking();
                 var status = GetStatus();
                 _dockingLcds.ForEach(l => l.WriteText(status));
+
+                Echo(_echo);
             }
         }
 
         private void Save()
         {
-            _gyros.ForEach(g => g.GyroOverride = false);
+            Shutdown();
         }
 
         private void HandleAutoTrigger()
         {
+            if (_targetMatrix == MatrixD.Zero) return;
             _aligning = !_aligning;
             _gyros.ForEach(g => g.GyroOverride = _aligning);
+            //_cockpits.ForEach(c => c.ControlThrusters = !_aligning);
+            if (!_aligning)
+            {
+                _thrusterArray.ToList().ForEach(ta => ta.ForEach(t => t.ThrustOverride = 0));
+            }
         }
 
         private void TryDocking()
@@ -141,8 +176,11 @@ namespace IngameScript
         private void Shutdown()
         {
             _targetMatrix = MatrixD.Zero;
-            _gyros.ForEach(g => g.GyroOverride = false);
             _aligning = false;
+            _inGravity = false;
+            _gyros.ForEach(g => g.GyroOverride = false);
+            //_cockpits.ForEach(c => c.ControlThrusters = true);
+            _thrusterArray.ToList().ForEach(ta => ta.ForEach(t => t.ThrustOverride = 0));
         }
 
         private void HandleMessages()
@@ -162,6 +200,23 @@ namespace IngameScript
                             _targetMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
                             _targetMatrix.Translation = newMatrix.Translation;
                             _targetQuaternion = QuaternionD.CreateFromRotationMatrix(_targetMatrix.GetOrientation());
+                            var gravity = ActiveCockpit.GetNaturalGravity();
+                            _inGravity = gravity != Vector3D.Zero;
+                            if (_inGravity)
+                            {
+                                var connectorDirection = ActiveCockpit.Orientation.TransformDirectionInverse(_connector.Orientation.Forward);
+                                var gravityAlign = QuaternionD.Identity;
+                                switch (connectorDirection)
+                                {
+                                    case Base6Directions.Direction.Forward:
+                                        var test = _targetMatrix.GetDirectionVector(Base6Directions.Direction.Up) + gravity;
+                                        test.Normalize();
+                                        break;
+                                    default:
+                                        throw new Exception("connector can't be that way!");
+                                }
+                                _targetQuaternion *= gravityAlign;
+                            }
                         }
                     }
                 }
@@ -212,6 +267,37 @@ namespace IngameScript
                 g.Yaw = (float)-_gyroVector.Y;
                 g.Roll = (float)-_gyroVector.Z;
             });
+        }
+
+        void SetIndicators()
+        {
+            if (!_aligning || _angle > 0.01) return;
+            var distance = _targetMatrix.Translation - _connectorMatrix.Translation;
+            var tgt = _targetVector;// Vector3D.Transform(distance, MatrixD.Transpose(ActiveCockpit.WorldMatrix));
+            var x = (float) _xPid.Control(-tgt.X / 10, _pidTimestep);
+            var y = (float) _yPid.Control(tgt.Y / 10, _pidTimestep);
+            var z = (float) _zPid.Control(-tgt.Z / 10, _pidTimestep);
+            _echo += $"{x}\n{y}\n{z}\n";
+            SetThrust(Base6Directions.Direction.Left, x);
+            SetThrust(Base6Directions.Direction.Up, y);
+            SetThrust(Base6Directions.Direction.Forward, z);
+
+        }
+
+        void SetThrust(Base6Directions.Direction direction, float magnitude)
+        {
+            magnitude = Math.Max(-1, Math.Min(magnitude, 1));
+            var reverseIndex = (int)direction;
+            var index = reverseIndex + (reverseIndex % 2 == 0 ? 1 : -1);
+            if (magnitude < 0)
+            {
+                magnitude = -magnitude;
+                var temp = reverseIndex;
+                reverseIndex = index;
+                index = temp;
+            }
+            _thrusterArray[index].ForEach(t => t.ThrustOverridePercentage = magnitude);
+            _thrusterArray[reverseIndex].ForEach(t => t.ThrustOverridePercentage = 0);
         }
 
         private string GetStatus() 
