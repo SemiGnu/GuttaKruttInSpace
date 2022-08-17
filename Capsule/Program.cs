@@ -24,10 +24,8 @@ namespace IngameScript
     {
         IMyShipController _cockpit;
         IMyRemoteControl _remote;
-        IMyShipConnector _topDock;
-        IMyShipConnector _bottomDock;
-        IMyShipConnector _topConnector;
-        IMyShipConnector _bottomConnector;
+        IMyShipConnector _topConnector, _bottomConnector;
+        IMyDoor _topGate, _bottomGate;
         IMyGyro _gyro;
         List<IMyTextSurface> _lcds = new List<IMyTextSurface>();
 
@@ -38,13 +36,6 @@ namespace IngameScript
 
         string _echo;
 
-        bool _translating = false;
-        bool _aligning = false;
-
-        double _pTune = 1;
-        double _iTune = 0;
-        double _dTune = 3.5;
-
         static double _pidTimestep = 1.0 / 6.0;
 
         PID _yDownPid = new PID(1, 0, 4.5, _pidTimestep);
@@ -54,6 +45,11 @@ namespace IngameScript
 
         double _dockingOffset = 1.85;
         Vector3D _gyroVector, _targetVector;
+
+        IMyUnicastListener _listener;
+        string _capsuleInfoBroadcastTag = "CAPSULE_INFO_LISTENER";
+        string _capsuleDistanceBroadcastTag = "CAPSULE_DISTANCE_LISTENER";
+        string _unicastInfoTag = "CAPSULE_INFO_LISTENER";
 
 
         enum States
@@ -66,78 +62,16 @@ namespace IngameScript
         }
         StateMachine<States, Transitions> _stateMachine;
 
+        
+
         public Program()
         {
-            var states = new StateMachine<States, Transitions>.State[] {
-                new StateMachine<States, Transitions>.State
-                {
-                    Id = States.Down,
-                    Update = () => "Down",
-                    Triggers = new Dictionary<Transitions, States>
-                    {
-                        [Transitions.Up] = States.Ascending,
-                        [Transitions.Toggle] = States.Ascending
-                    },
-                },
-                new StateMachine<States, Transitions>.State
-                {
-                    Id = States.Ascending,
-                    Update = () => {
-                        _bottomConnector.Disconnect();
-                        SetIndicators(States.Up);
-                        CalculateRotationVector();
-                        SetGyro();
-                        if(_topConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
-                        {
-                            TurnOff();
-                            _topConnector.Connect();
-                        }
-                        return $"Ascending";
-                    },
-                    EndCondition = () => _topConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = States.Up,
-                    Triggers = new Dictionary<Transitions, States>
-                    {
-                        [Transitions.Down] = States.Descending,
-                        [Transitions.Toggle] = States.Descending
-                    },
-                },
-                new StateMachine<States, Transitions>.State
-                {
-                    Id = States.Up,
-                    Update = () => "Up",
-                    Triggers = new Dictionary<Transitions, States>
-                    {
-                        [Transitions.Down] = States.Descending,
-                        [Transitions.Toggle] = States.Descending
-                    },
-                },
-                new StateMachine<States, Transitions>.State
-                {
-                    Id = States.Descending,
-                    Update = () => {
-                        _topConnector.Disconnect();
-                        SetIndicators(States.Down);
-                        CalculateRotationVector();
-                        SetGyro();
-                        if(_bottomConnector.Status == MyShipConnectorStatus.Connectable)
-                        {
-                            TurnOff();
-                            _bottomConnector.Connect();
-                        }
-                        return $"Descending";
-                    },
-                    EndCondition = () => _bottomConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = States.Down,
-                    Triggers = new Dictionary<Transitions, States>
-                    {
-                        [Transitions.Up] = States.Ascending,
-                        [Transitions.Toggle] = States.Ascending
-                    },
-                },
-            };
+            var states = GetStates();
             _stateMachine = new StateMachine<States, Transitions>(States.Down, states);
 
+            _listener = IGC.UnicastListener;
+
+            #region Set blocks
             _remote = GridTerminalSystem.GetBlockWithName("Capsule Remote Control") as IMyRemoteControl;
             _cockpit = GridTerminalSystem.GetBlockWithName("Capsule Cockpit") as IMyShipController;
             _topDock = GridTerminalSystem.GetBlockWithName("Capsule Top Dock") as IMyShipConnector;
@@ -158,19 +92,11 @@ namespace IngameScript
             _lcds.Add(Me.GetSurface(0));
             _lcds.Add((_cockpit as IMyTextSurfaceProvider).GetSurface(0));
             _lcds.Add((GridTerminalSystem.GetBlockWithName("Capsule Cock 2") as IMyTextSurfaceProvider).GetSurface(0));
-
-
-            var newMatrix = _topDock.WorldMatrix;
-            newMatrix.Translation += newMatrix.Forward * _dockingOffset;
-            _topDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
-            _topDockMatrix.Translation = newMatrix.Translation;
-            newMatrix = _bottomDock.WorldMatrix;
-            newMatrix.Translation += newMatrix.Forward * _dockingOffset;
-            _bottomDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
-            _bottomDockMatrix.Translation = newMatrix.Translation;
+            #endregion
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }
+
 
         public void Save()
         {
@@ -187,6 +113,30 @@ namespace IngameScript
             _echo = _stateMachine.Update();
             Echo(_echo);
             _lcds.ForEach(l => l.WriteText(_echo));
+        }
+
+        private void HandleMessages()
+        {
+            while (_listener.HasPendingMessage)
+            {
+                MyIGCMessage message = _listener.AcceptMessage();
+                if (message.Tag == _unicastInfoTag)
+                {
+                    if (message.Data is MyTuple<MatrixD, MatrixD>)
+                    {
+                        var data = (MyTuple<MatrixD, MatrixD>)message.Data;
+
+                        var newMatrix = data.Item1;
+                        newMatrix.Translation += newMatrix.Forward * _dockingOffset;
+                        _topDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
+                        _topDockMatrix.Translation = newMatrix.Translation;
+                        newMatrix = data.Item2;
+                        newMatrix.Translation += newMatrix.Forward * _dockingOffset;
+                        _bottomDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
+                        _bottomDockMatrix.Translation = newMatrix.Translation;
+                    }
+                }
+            }
         }
 
         void TurnOff()
@@ -255,6 +205,83 @@ namespace IngameScript
             }
             _thrusterArray[index].ForEach(t => t.ThrustOverridePercentage = magnitude);
             _thrusterArray[reverseIndex].ForEach(t => t.ThrustOverridePercentage = 0);
+        }
+        private string Ascend()
+        {
+            _bottomConnector.Disconnect();
+            SetIndicators(States.Up);
+            CalculateRotationVector();
+            SetGyro();
+            if (_topConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
+            {
+                TurnOff();
+                _topConnector.Connect();
+            }
+            return $"Ascending";
+        }
+
+        private string Descend()
+        {
+            _topConnector.Disconnect();
+            SetIndicators(States.Down);
+            CalculateRotationVector();
+            SetGyro();
+            if (_bottomConnector.Status == MyShipConnectorStatus.Connectable)
+            {
+                TurnOff();
+                _bottomConnector.Connect();
+            }
+            return $"Descending";
+        }
+
+        private StateMachine<States, Transitions>.State[] GetStates()
+        {
+            return new StateMachine<States, Transitions>.State[] {
+                new StateMachine<States, Transitions>.State
+                {
+                    Id = States.Down,
+                    Update = () => "Down",
+                    Triggers = new Dictionary<Transitions, States>
+                    {
+                        [Transitions.Up] = States.Ascending,
+                        [Transitions.Toggle] = States.Ascending
+                    },
+                },
+                new StateMachine<States, Transitions>.State
+                {
+                    Id = States.Ascending,
+                    Update = Ascend,
+                    EndCondition = () => _topConnector.Status == MyShipConnectorStatus.Connected,
+                    NextState = States.Up,
+                    Triggers = new Dictionary<Transitions, States>
+                    {
+                        [Transitions.Down] = States.Descending,
+                        [Transitions.Toggle] = States.Descending
+                    },
+                },
+                new StateMachine<States, Transitions>.State
+                {
+                    Id = States.Up,
+                    Update = () => "Up",
+                    Triggers = new Dictionary<Transitions, States>
+                    {
+                        [Transitions.Down] = States.Descending,
+                        [Transitions.Toggle] = States.Descending
+                    },
+                },
+                new StateMachine<States, Transitions>.State
+                {
+                    Id = States.Descending,
+                    Update = Descend,
+                    EndCondition = () => _bottomConnector.Status == MyShipConnectorStatus.Connected,
+                    NextState = States.Down,
+                    Triggers = new Dictionary<Transitions, States>
+                    {
+                        [Transitions.Up] = States.Ascending,
+                        [Transitions.Toggle] = States.Ascending
+                    },
+                },
+            };
         }
     }
 }

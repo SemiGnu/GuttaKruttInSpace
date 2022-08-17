@@ -31,8 +31,6 @@ namespace IngameScript
         List<IMyThrust> _thrusters = new List<IMyThrust>();
         List<IMyThrust>[] _thrusterArray = new List<IMyThrust>[6];
 
-        IMyUnicastListener _listener;
-
         IMyCockpit ActiveCockpit => _cockpits.FirstOrDefault(c => c.IsUnderControl) ?? _cockpits.First();
 
         MatrixD _connectorMatrix => _connector.WorldMatrix;
@@ -44,6 +42,7 @@ namespace IngameScript
 
         string _targetName;
 
+        IMyUnicastListener _listener;
         string _dockingBroadcastTag = "DOCKING_LISTENER";
         string _hangarBroadcastTag = "HANGAR_LISTENER";
         string _unicastTag = "DOCKING_INFORMATION";
