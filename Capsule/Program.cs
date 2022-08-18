@@ -30,6 +30,7 @@ namespace IngameScript
         List<IMyTextSurface> _lcds = new List<IMyTextSurface>();
 
         MatrixD _topDockMatrix, _bottomDockMatrix;
+        QuaternionD _targetQuaternion;
 
         List<IMyThrust> _thrusters = new List<IMyThrust>();
         List<IMyThrust>[] _thrusterArray = new List<IMyThrust>[6];
@@ -44,17 +45,19 @@ namespace IngameScript
         PID _zPid = new PID(1, 0, 1, _pidTimestep);
 
         double _dockingOffset = 1.85;
-        Vector3D _gyroVector, _targetVector;
+        Vector3D _gyroVector, _distanceVector, _targetVector;
 
         IMyUnicastListener _listener;
         string _capsuleInfoBroadcastTag = "CAPSULE_INFO_LISTENER";
         string _capsuleDistanceBroadcastTag = "CAPSULE_DISTANCE_LISTENER";
         string _unicastInfoTag = "CAPSULE_INFO_LISTENER";
+        string _unicastTriggerTag = "CAPSULE_TRIGGER_LISTENER";
+        long _capsuleHubId;
 
 
         enum States
         {
-            Up, Down, Ascending, Descending
+            Init, Up, Down, Ascending, Descending
         }
         enum Transitions
         {
@@ -67,15 +70,15 @@ namespace IngameScript
         public Program()
         {
             var states = GetStates();
-            _stateMachine = new StateMachine<States, Transitions>(States.Down, states);
+            _stateMachine = new StateMachine<States, Transitions>(States.Init, states);
 
             _listener = IGC.UnicastListener;
 
             #region Set blocks
             _remote = GridTerminalSystem.GetBlockWithName("Capsule Remote Control") as IMyRemoteControl;
-            _cockpit = GridTerminalSystem.GetBlockWithName("Capsule Cockpit") as IMyShipController;
-            _topDock = GridTerminalSystem.GetBlockWithName("Capsule Top Dock") as IMyShipConnector;
-            _bottomDock = GridTerminalSystem.GetBlockWithName("Capsule Bottom Dock") as IMyShipConnector;
+            //_cockpit = GridTerminalSystem.GetBlockWithName("Capsule Cockpit") as IMyShipController;
+            //_topDock = GridTerminalSystem.GetBlockWithName("Capsule Top Dock") as IMyShipConnector;
+            //_bottomDock = GridTerminalSystem.GetBlockWithName("Capsule Bottom Dock") as IMyShipConnector;
             _topConnector = GridTerminalSystem.GetBlockWithName("Capsule Top Connector") as IMyShipConnector;
             _bottomConnector = GridTerminalSystem.GetBlockWithName("Capsule Bottom Connector") as IMyShipConnector;
             _gyro = GridTerminalSystem.GetBlockWithName("Capsule Gyro") as IMyGyro;
@@ -90,8 +93,8 @@ namespace IngameScript
             }
 
             _lcds.Add(Me.GetSurface(0));
-            _lcds.Add((_cockpit as IMyTextSurfaceProvider).GetSurface(0));
-            _lcds.Add((GridTerminalSystem.GetBlockWithName("Capsule Cock 2") as IMyTextSurfaceProvider).GetSurface(0));
+            //_lcds.Add((_cockpit as IMyTextSurfaceProvider).GetSurface(0));
+            //_lcds.Add((GridTerminalSystem.GetBlockWithName("Capsule Cock 2") as IMyTextSurfaceProvider).GetSurface(0));
             #endregion
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -110,8 +113,9 @@ namespace IngameScript
             {
                 _stateMachine.Trigger(arg);
             }
+            HandleMessages();
             _echo = _stateMachine.Update();
-            Echo(_echo);
+            //Echo($"{_distanceVector.Y:0.000}");
             _lcds.ForEach(l => l.WriteText(_echo));
         }
 
@@ -120,20 +124,21 @@ namespace IngameScript
             while (_listener.HasPendingMessage)
             {
                 MyIGCMessage message = _listener.AcceptMessage();
-                if (message.Tag == _unicastInfoTag)
+                if (message.Tag == _unicastInfoTag && message.Data is MyTuple<MatrixD, MatrixD, QuaternionD>)
                 {
-                    if (message.Data is MyTuple<MatrixD, MatrixD>)
+                    var data = (MyTuple<MatrixD, MatrixD, QuaternionD>)message.Data;
+                    _capsuleHubId = message.Source;
+                    _topDockMatrix = data.Item1;
+                    _bottomDockMatrix = data.Item2;
+                    _targetQuaternion = data.Item3;
+                }
+                if(message.Tag == _unicastTriggerTag && message.Data is string)
+                {
+                    Echo((string)message.Data);
+                    Transitions arg;
+                    if (Enum.TryParse((string)message.Data, out arg))
                     {
-                        var data = (MyTuple<MatrixD, MatrixD>)message.Data;
-
-                        var newMatrix = data.Item1;
-                        newMatrix.Translation += newMatrix.Forward * _dockingOffset;
-                        _topDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
-                        _topDockMatrix.Translation = newMatrix.Translation;
-                        newMatrix = data.Item2;
-                        newMatrix.Translation += newMatrix.Forward * _dockingOffset;
-                        _bottomDockMatrix = MatrixD.CreateFromDir(newMatrix.Backward);
-                        _bottomDockMatrix.Translation = newMatrix.Translation;
+                        _stateMachine.Trigger(arg);
                     }
                 }
             }
@@ -147,14 +152,13 @@ namespace IngameScript
 
         private void CalculateRotationVector()
         {
-            var targetQ = QuaternionD.CreateFromForwardUp(_cockpit.WorldMatrix.Forward, _cockpit.WorldMatrix.Up);
-            var capsuleQ = QuaternionD.CreateFromForwardUp(_remote.WorldMatrix.Forward, _remote.WorldMatrix.Up);
+            var capsuleQuaternion = QuaternionD.CreateFromForwardUp(_remote.WorldMatrix.Forward, _remote.WorldMatrix.Up);
             QuaternionD current = QuaternionD.CreateFromRotationMatrix(_remote.WorldMatrix.GetOrientation());
-            QuaternionD rotation = targetQ / capsuleQ;
+            QuaternionD rotation = _targetQuaternion / capsuleQuaternion;
             rotation.Normalize();
+
             Vector3D axis;
             double angle;
-
             rotation.GetAxisAngle(out axis, out angle);
 
             MatrixD worldToCockpit = MatrixD.Invert(_remote.WorldMatrix.GetOrientation());
@@ -176,10 +180,10 @@ namespace IngameScript
 
         void SetIndicators(States state)
         {
-            var distance = state == States.Up 
+            _distanceVector = state == States.Up 
                 ? _topConnector.WorldMatrix.Translation - _topDockMatrix.Translation
                 : _bottomConnector.WorldMatrix.Translation - _bottomDockMatrix.Translation;
-            _targetVector = Vector3D.TransformNormal(distance, MatrixD.Transpose(_remote.WorldMatrix));
+            _targetVector = Vector3D.TransformNormal(_distanceVector, MatrixD.Transpose(_remote.WorldMatrix));
 
             var y = state == States.Up 
                 ? (float)_yUpPid.Control(-_targetVector.Y / 10, _pidTimestep)
@@ -217,7 +221,9 @@ namespace IngameScript
                 TurnOff();
                 _topConnector.Connect();
             }
-            return $"Ascending";
+            var status = $"Ascending\n{_distanceVector.Length():0000}m";
+            IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
+            return status;
         }
 
         private string Descend()
@@ -231,12 +237,24 @@ namespace IngameScript
                 TurnOff();
                 _bottomConnector.Connect();
             }
-            return $"Descending";
+            var status = $"Descending\n{_distanceVector.Length():0000}m";
+            IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
+            return status;
         }
 
         private StateMachine<States, Transitions>.State[] GetStates()
         {
             return new StateMachine<States, Transitions>.State[] {
+                new StateMachine<States, Transitions>.State
+                {
+                    Id = States.Init,
+                    Update = () => {
+                        IGC.SendBroadcastMessage(_capsuleInfoBroadcastTag,"");
+                        return "Sending";
+                    },
+                    EndCondition = () => _topDockMatrix != default(MatrixD),
+                    NextState = States.Down,
+                },
                 new StateMachine<States, Transitions>.State
                 {
                     Id = States.Down,
