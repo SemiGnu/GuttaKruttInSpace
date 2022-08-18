@@ -24,19 +24,23 @@ namespace IngameScript
     {
         MatrixD _topDockMatrix, _bottomDockMatrix;
         IMyBroadcastListener _infoListener;
-        IMyBroadcastListener _distanceListener;
+        IMyUnicastListener _distanceListener;
 
         string _capsuleInfoBroadcastTag = "CAPSULE_INFO_LISTENER";
         string _capsuleDistanceBroadcastTag = "CAPSULE_DISTANCE_LISTENER";
         string _unicastInfoTag = "CAPSULE_INFO_LISTENER";
+
+        float _distance;
 
         public Program()
         {
             _topDockMatrix = GridTerminalSystem.GetBlockWithName("Capsule Top Dock").WorldMatrix;
             _bottomDockMatrix = GridTerminalSystem.GetBlockWithName("Capsule Bottom Dock").WorldMatrix;
 
-            _distanceListener = IGC.RegisterBroadcastListener(_capsuleInfoBroadcastTag);
-            _distanceListener.SetMessageCallback(_capsuleInfoBroadcastTag);
+            _infoListener = IGC.RegisterBroadcastListener(_capsuleInfoBroadcastTag);
+            //_infoListener.SetMessageCallback(_capsuleInfoBroadcastTag);            
+            _distanceListener = IGC.UnicastListener;
+            //_distanceListener.SetMessageCallback(_capsuleDistanceBroadcastTag);
         }
 
         public void Save()
@@ -47,6 +51,33 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
 
+        }
+
+        private void HandleMessages()
+        {
+            while (_infoListener.HasPendingMessage)
+            {
+                MyIGCMessage message = _infoListener.AcceptMessage();
+                if (message.Tag == _capsuleInfoBroadcastTag)
+                {
+                    if (message.Data is MatrixD)
+                    {
+                        IGC.SendUnicastMessage(message.Source, _unicastInfoTag, MyTuple.Create(_topDockMatrix, _bottomDockMatrix));
+                    }
+                }
+            }
+
+            while (_distanceListener.HasPendingMessage)
+            {
+                MyIGCMessage message = _infoListener.AcceptMessage();
+                if (message.Tag == _capsuleInfoBroadcastTag)
+                {
+                    if (message.Data is MatrixD)
+                    {
+                        IGC.SendUnicastMessage(message.Source, _unicastInfoTag, MyTuple.Create(_topDockMatrix, _bottomDockMatrix));
+                    }
+                }
+            }
         }
     }
 }
