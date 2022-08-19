@@ -22,9 +22,8 @@ namespace IngameScript
 {
     partial class Program
     {
-        public class StateMachine<EnumStates, EnumTransitions> 
+        public class StateMachine<EnumStates> 
             where EnumStates : struct
-            where EnumTransitions : struct
         {
             public State[] States { get; set; }
             public State ActiveState { get; set; }
@@ -37,17 +36,18 @@ namespace IngameScript
 
             public string Update()
             {
-                if (ActiveState.EndCondition())
+                var nextState = ActiveState.NextState();
+                if (nextState.HasValue)
                 {
-                    SetState(ActiveState.NextState);
+                    SetState(nextState.Value);
                 }
                 return ActiveState.Update();
             }
 
-            public void Trigger(EnumTransitions transitions)
+            public void Trigger(string transition)
             {
                 EnumStates newState;
-                if (ActiveState.Triggers.TryGetValue(transitions, out newState))
+                if (ActiveState.Triggers.TryGetValue(transition, out newState))
                 {
                     SetState(newState);
                 }
@@ -57,13 +57,13 @@ namespace IngameScript
             {
                 ActiveState = States.First(s => s.Id.Equals(state));
             }
+
             public class State
             {
                 public EnumStates Id { get; set; }
-                public Func<bool> EndCondition { get; set; } = () => false;
-                public EnumStates NextState { get; set; }
                 public Func<string> Update { get; set; } = () => string.Empty;
-                public Dictionary<EnumTransitions, EnumStates> Triggers { get; set; } = new Dictionary<EnumTransitions, EnumStates>();
+                public Func<EnumStates?> NextState { get; set; } = () => null;
+                public Dictionary<string, EnumStates> Triggers { get; set; } = new Dictionary<string, EnumStates>();
             }
         }
 

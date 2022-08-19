@@ -25,8 +25,10 @@ namespace IngameScript
         IMyShipController _cockpit;
         IMyRemoteControl _remote;
         IMyShipConnector _topConnector, _bottomConnector;
-        IMyDoor _topGate, _bottomGate;
+        IMyDoor _gate;
+        IMyDoor _stationDoor, _door;
         IMyGyro _gyro;
+        List<IMyAirVent> _airVents = new List<IMyAirVent>();
         List<IMyTextSurface> _lcds = new List<IMyTextSurface>();
 
         MatrixD _topDockMatrix, _bottomDockMatrix;
@@ -57,31 +59,29 @@ namespace IngameScript
 
         enum States
         {
-            Init, Up, Down, Ascending, Descending
+            Init, Up, Down, Ascending, Descending, OpeningGate, ClosingGate, OpeningDoors, ClosingDoors
         }
         enum Transitions
         {
             Up, Down, Toggle
         }
-        StateMachine<States, Transitions> _stateMachine;
+        StateMachine<States> _stateMachine;
 
         
 
         public Program()
         {
             var states = GetStates();
-            _stateMachine = new StateMachine<States, Transitions>(States.Init, states);
+            _stateMachine = new StateMachine<States>(States.Init, states);
 
             _listener = IGC.UnicastListener;
 
             #region Set blocks
             _remote = GridTerminalSystem.GetBlockWithName("Capsule Remote Control") as IMyRemoteControl;
-            //_cockpit = GridTerminalSystem.GetBlockWithName("Capsule Cockpit") as IMyShipController;
-            //_topDock = GridTerminalSystem.GetBlockWithName("Capsule Top Dock") as IMyShipConnector;
-            //_bottomDock = GridTerminalSystem.GetBlockWithName("Capsule Bottom Dock") as IMyShipConnector;
             _topConnector = GridTerminalSystem.GetBlockWithName("Capsule Top Connector") as IMyShipConnector;
             _bottomConnector = GridTerminalSystem.GetBlockWithName("Capsule Bottom Connector") as IMyShipConnector;
             _gyro = GridTerminalSystem.GetBlockWithName("Capsule Gyro") as IMyGyro;
+            _door = GridTerminalSystem.GetBlockWithName("Capsule Door") as IMyDoor;
 
             _thrusterArray = _thrusterArray.Select(ta => new List<IMyThrust>()).ToArray();
             GridTerminalSystem.GetBlocksOfType(_thrusters, t => t.CubeGrid == _remote.CubeGrid);
@@ -93,8 +93,6 @@ namespace IngameScript
             }
 
             _lcds.Add(Me.GetSurface(0));
-            //_lcds.Add((_cockpit as IMyTextSurfaceProvider).GetSurface(0));
-            //_lcds.Add((GridTerminalSystem.GetBlockWithName("Capsule Cock 2") as IMyTextSurfaceProvider).GetSurface(0));
             #endregion
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -108,10 +106,9 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            Transitions arg;
-            if ((updateSource & UpdateType.Trigger) > 0 && Enum.TryParse(argument, out arg))
+            if ((updateSource & UpdateType.Trigger) > 0)
             {
-                _stateMachine.Trigger(arg);
+                _stateMachine.Trigger(argument);
             }
             HandleMessages();
             _echo = _stateMachine.Update();
@@ -134,12 +131,7 @@ namespace IngameScript
                 }
                 if(message.Tag == _unicastTriggerTag && message.Data is string)
                 {
-                    Echo((string)message.Data);
-                    Transitions arg;
-                    if (Enum.TryParse((string)message.Data, out arg))
-                    {
-                        _stateMachine.Trigger(arg);
-                    }
+                    _stateMachine.Trigger((string)message.Data);
                 }
             }
         }
@@ -220,6 +212,8 @@ namespace IngameScript
             {
                 TurnOff();
                 _topConnector.Connect();
+                _stationDoor = GridTerminalSystem.GetBlockWithName("Capsule Top Door") as IMyDoor;
+                _gate = GridTerminalSystem.GetBlockWithName("Capsule Top Gate") as IMyDoor;
             }
             var status = $"Ascending\n{_distanceVector.Length():0000}m";
             IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
@@ -232,71 +226,99 @@ namespace IngameScript
             SetIndicators(States.Down);
             CalculateRotationVector();
             SetGyro();
-            if (_bottomConnector.Status == MyShipConnectorStatus.Connectable)
+            if (_bottomConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
             {
                 TurnOff();
                 _bottomConnector.Connect();
+                _stationDoor = GridTerminalSystem.GetBlockWithName("Capsule Bottom Door") as IMyDoor;
+                _gate = GridTerminalSystem.GetBlockWithName("Capsule Bottom Gate") as IMyDoor;
             }
             var status = $"Descending\n{_distanceVector.Length():0000}m";
             IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
             return status;
         }
 
-        private StateMachine<States, Transitions>.State[] GetStates()
+        private StateMachine<States>.State[] GetStates()
         {
-            return new StateMachine<States, Transitions>.State[] {
-                new StateMachine<States, Transitions>.State
+            States? _null = null;
+            return new StateMachine<States>.State[] {
+                new StateMachine<States>.State
                 {
                     Id = States.Init,
                     Update = () => {
                         IGC.SendBroadcastMessage(_capsuleInfoBroadcastTag,"");
-                        return "Sending";
+                        return "Initializing";
                     },
-                    EndCondition = () => _topDockMatrix != default(MatrixD),
-                    NextState = States.Down,
+                    NextState = () => _topDockMatrix != default(MatrixD) ? States.Down : _null,
                 },
-                new StateMachine<States, Transitions>.State
+                new StateMachine<States>.State
                 {
                     Id = States.Down,
-                    Update = () => "Down",
-                    Triggers = new Dictionary<Transitions, States>
+                    Update = () => "Docked at\nBase",
+                    Triggers = new Dictionary<string, States>
                     {
-                        [Transitions.Up] = States.Ascending,
-                        [Transitions.Toggle] = States.Ascending
+                        ["Up"] = States.Ascending,
+                        ["Toggle"] = States.Ascending
                     },
                 },
-                new StateMachine<States, Transitions>.State
+                new StateMachine<States>.State
                 {
                     Id = States.Ascending,
                     Update = Ascend,
-                    EndCondition = () => _topConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = States.Up,
-                    Triggers = new Dictionary<Transitions, States>
+                    NextState = () => _topConnector.Status == MyShipConnectorStatus.Connected ? States.Up : _null,
+                    Triggers = new Dictionary<string, States>
                     {
-                        [Transitions.Down] = States.Descending,
-                        [Transitions.Toggle] = States.Descending
+                        ["Down"] = States.Descending,
+                        ["Toggle"] = States.Descending
                     },
                 },
-                new StateMachine<States, Transitions>.State
+                new StateMachine<States>.State
                 {
                     Id = States.Up,
-                    Update = () => "Up",
-                    Triggers = new Dictionary<Transitions, States>
+                    Update = () => "Docked in\nOrbit",
+                    Triggers = new Dictionary<string, States>
                     {
-                        [Transitions.Down] = States.Descending,
-                        [Transitions.Toggle] = States.Descending
+                        ["Down"] = States.Descending,
+                        ["Toggle"] = States.Descending
                     },
                 },
-                new StateMachine<States, Transitions>.State
+                new StateMachine<States>.State
                 {
                     Id = States.Descending,
                     Update = Descend,
-                    EndCondition = () => _bottomConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = States.Down,
-                    Triggers = new Dictionary<Transitions, States>
+                    NextState = () => _bottomConnector.Status == MyShipConnectorStatus.Connected ? States.Down : _null,
+                    Triggers = new Dictionary<string, States>
                     {
-                        [Transitions.Up] = States.Ascending,
-                        [Transitions.Toggle] = States.Ascending
+                        ["Up"] = States.Ascending,
+                        ["Toggle"] = States.Ascending
+                    },
+                },
+                new StateMachine<States>.State
+                {
+                    Id = States.ClosingGate,
+                    Update = () => {
+                        _gate.CloseDoor();
+                        return "Closing\nGate";
+                    },
+                    NextState = () => _gate.Status == DoorStatus.Closed ? States.OpeningDoors : _null,
+                    Triggers = new Dictionary<string, States>
+                    {
+                        ["Toggle"] = States.OpeningGate
+                    },
+                },
+                new StateMachine<States>.State
+                {
+                    Id = States.OpeningDoors,
+                    Update = () => {
+                        _stationDoor.OpenDoor();
+                        _door.OpenDoor();
+                        _airVents.ForEach(a => a.Depressurize = false);
+                        return "Opening\nDoors";
+                    },
+                    NextState = () => _gate.Status != DoorStatus.Closed ? _null : _topConnector.Status == MyShipConnectorStatus.Connected ? States.Up: States.Down,
+                    Triggers = new Dictionary<string, States>
+                    {
+                        ["Toggle"] = States.ClosingDoors
                     },
                 },
             };
