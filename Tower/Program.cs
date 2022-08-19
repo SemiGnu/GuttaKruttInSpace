@@ -42,7 +42,7 @@ namespace IngameScript
             [MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SteelPlate")] = 775,
         };
 
-        FiniteStateMachine StateMachine;
+        StateMachine<States> _stateMachine;
 
 
         const float PistonMaxLimit = 9.84f;
@@ -64,6 +64,12 @@ namespace IngameScript
         }
 
         bool Active = true;
+
+        enum States
+        {
+            Grinding, Building, ConnectingTop, ConnectingBottom, DisconnectingTop, DisconnectingBottom
+        }
+        States? _null = null;
 
         public Program()
         {
@@ -91,9 +97,9 @@ namespace IngameScript
 
             var states = new[]
             {
-                new State {
-                    EndCondition = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit,
-                    NextState = 1,
+                new StateMachine<States>.State {
+                    Id = States.DisconnectingBottom,
+                    NextState = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit ? States.Grinding : _null,
                     Update = () => {
                         BottomConnector.Disconnect();
                         BottomMergeBlock.Enabled = false;
@@ -101,9 +107,9 @@ namespace IngameScript
                         return "Disconnecting bottom";
                     }
                 },
-                new State {
-                    EndCondition = () => Pistons.All(p => p.CurrentPosition == p.MinLimit),
-                    NextState = 2,
+                new StateMachine<States>.State {
+                    Id = States.Grinding,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MinLimit) ? States.ConnectingBottom : _null,
                     Update = () => {
                         BottomMergeBlock.Enabled = true;
                         var speed = VerticalSpeed(PistonPosition);
@@ -111,9 +117,9 @@ namespace IngameScript
                         return $"Grinding: {1-PistonRatio:p0}";
                     }
                 },
-                new State {
-                    EndCondition = () => BottomConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = 3,
+                new StateMachine<States>.State {
+                    Id = States.ConnectingBottom,
+                    NextState = () => BottomConnector.Status == MyShipConnectorStatus.Connected ? States.DisconnectingTop : _null,
                     Update = () => {
                         BottomPiston.Velocity = LateralSpeed(BottomPiston.CurrentPosition);
                         if (BottomMergeBlock.IsConnected)
@@ -123,9 +129,9 @@ namespace IngameScript
                         return "Connecting bottom";
                     }
                 },
-                new State {
-                    EndCondition = () => TopPiston.CurrentPosition == TopPiston.MinLimit,
-                    NextState = 4,
+                new StateMachine<States>.State {
+                    Id = States.DisconnectingTop,
+                    NextState = () => TopPiston.CurrentPosition == TopPiston.MinLimit ? States.Building : _null,
                     Update = () => {
                         TopConnector.Disconnect();
                         TopMergeBlock.Enabled = false;
@@ -133,9 +139,9 @@ namespace IngameScript
                         return "Disconnecting top";
                     }
                 },
-                new State {
-                    EndCondition = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit) && GetQueueLength() == 0,
-                    NextState = 5,
+                new StateMachine<States>.State {
+                    Id = States.Building,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit) && GetQueueLength() == 0 ? States.ConnectingTop : _null,
                     Update = () => {
                         TopMergeBlock.Enabled = true;
                         var speed = 0.3f;// VerticalSpeed(PistonPosition);
@@ -143,9 +149,9 @@ namespace IngameScript
                         return $"Building: {PistonRatio:p0}";
                     }
                 },
-                new State {
-                    EndCondition = () => TopConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = 0,
+                new StateMachine<States>.State {
+                    Id = States.ConnectingTop,
+                    NextState = () => TopConnector.Status == MyShipConnectorStatus.Connected ? States.DisconnectingBottom : _null,
                     Update = () => {
                         TopPiston.Velocity = LateralSpeed(TopPiston.CurrentPosition);
                         if (TopMergeBlock.IsConnected)
@@ -162,9 +168,9 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType(surfaceProviders, s => (s as IMyTerminalBlock)?.CustomName.StartsWith("Tower") == true);
             Lcds = surfaceProviders.Select(s => s.GetSurface(0)).ToList();
 
-            int startIndex;
-            startIndex = int.TryParse(Storage, out startIndex) ? startIndex : 0;
-            StateMachine = new FiniteStateMachine(startIndex, states);
+            States startState;
+            startState = Enum.TryParse(Storage, out startState) ? startState : States.ConnectingTop;
+            _stateMachine = new StateMachine<States>(startState, states);
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
 
@@ -172,7 +178,7 @@ namespace IngameScript
 
         public void Save()
         {
-            Storage = $"{StateMachine.ActiveStateIndex}";
+            Storage = $"{_stateMachine.ActiveState}";
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -187,7 +193,7 @@ namespace IngameScript
             status += $"Assembler queue: {GetQueueLength()}\n";
             if (Helm.GetNaturalGravity().Length() > 0)
             {
-                status += StateMachine.Update();
+                status += _stateMachine.Update();
             } 
             Lcds.ForEach(l => l?.WriteText(status));
         }

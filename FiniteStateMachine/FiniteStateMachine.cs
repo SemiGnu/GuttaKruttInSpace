@@ -38,7 +38,6 @@ namespace IngameScript
                 if (ActiveState.EndCondition())
                 {
                     SetState(ActiveState.NextState);
-                    //return "Updating";
                 }
                 return ActiveState.Update();
             }
