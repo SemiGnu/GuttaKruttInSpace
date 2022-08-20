@@ -45,14 +45,10 @@ namespace IngameScript
             _remote = GridTerminalSystem.GetBlockWithName("Capsule Hub Remote Control") as IMyRemoteControl;
 
             var tsps = new List<IMyTextSurfaceProvider>();
-            GridTerminalSystem.GetBlocksOfType(tsps);
-            _lcds = tsps.Where(t => (t as IMyTerminalBlock).CustomName.StartsWith("Capsule LCD"))?.Select(t => t.GetSurface(0)).ToList();
             _lcds.Add(Me.GetSurface(0));
 
             _infoListener = IGC.RegisterBroadcastListener(_capsuleInfoBroadcastTag);
-            //_infoListener.SetMessageCallback(_capsuleInfoBroadcastTag);            
             _distanceListener = IGC.UnicastListener;
-            //_distanceListener.SetMessageCallback(_capsuleDistanceBroadcastTag);
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }

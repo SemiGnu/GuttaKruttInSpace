@@ -22,12 +22,14 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        IMyShipController _cockpit;
         IMyRemoteControl _remote;
         IMyShipConnector _topConnector, _bottomConnector;
         IMyDoor _gate;
         IMyDoor _stationDoor, _door;
         IMyGyro _gyro;
+        IMyGasTank _o2Tank;
+        IMyBatteryBlock _battery;
+        List<IMyGasTank> _o2Tanks = new List<IMyGasTank>();
         List<IMyAirVent> _airVents = new List<IMyAirVent>();
         List<IMyTextSurface> _lcds = new List<IMyTextSurface>();
 
@@ -46,7 +48,6 @@ namespace IngameScript
         PID _xPid = new PID(1, 0, 1, _pidTimestep);
         PID _zPid = new PID(1, 0, 1, _pidTimestep);
 
-        double _dockingOffset = 1.85;
         Vector3D _gyroVector, _distanceVector, _targetVector;
 
         IMyUnicastListener _listener;
@@ -82,6 +83,8 @@ namespace IngameScript
             _bottomConnector = GridTerminalSystem.GetBlockWithName("Capsule Bottom Connector") as IMyShipConnector;
             _gyro = GridTerminalSystem.GetBlockWithName("Capsule Gyro") as IMyGyro;
             _door = GridTerminalSystem.GetBlockWithName("Capsule Door") as IMyDoor;
+            _o2Tank = GridTerminalSystem.GetBlockWithName("Capsule Oxygen Tank") as IMyGasTank;
+            _battery = GridTerminalSystem.GetBlockWithName("Capsule Battery") as IMyBatteryBlock;
 
             _thrusterArray = _thrusterArray.Select(ta => new List<IMyThrust>()).ToArray();
             GridTerminalSystem.GetBlocksOfType(_thrusters, t => t.CubeGrid == _remote.CubeGrid);
@@ -111,8 +114,9 @@ namespace IngameScript
                 _stateMachine.Trigger(argument);
             }
             HandleMessages();
+            Echo($"{ _distanceVector.Length()}");
+            Echo($"{ _targetVector.Length()}");
             _echo = _stateMachine.Update();
-            //Echo($"{_distanceVector.Y:0.000}");
             _lcds.ForEach(l => l.WriteText(_echo));
         }
 
@@ -172,14 +176,15 @@ namespace IngameScript
 
         void SetIndicators(State state)
         {
-            _distanceVector = state == State.Up 
+            _distanceVector = state == State.Ascending 
                 ? _topConnector.WorldMatrix.Translation - _topDockMatrix.Translation
                 : _bottomConnector.WorldMatrix.Translation - _bottomDockMatrix.Translation;
             _targetVector = Vector3D.TransformNormal(_distanceVector, MatrixD.Transpose(_remote.WorldMatrix));
 
-            var y = state == State.Up 
+            var y = state == State.Ascending
                 ? (float)_yUpPid.Control(-_targetVector.Y / 10, _pidTimestep)
                 : (float)_yDownPid.Control(-_targetVector.Y / 10, _pidTimestep);
+            Echo($"y: {y}");
             var x = (float)_xPid.Control(_targetVector.X / 10, _pidTimestep);
             var z = (float)_zPid.Control(_targetVector.Z / 10, _pidTimestep);
             SetThrust(Base6Directions.Direction.Left, x);
@@ -189,7 +194,9 @@ namespace IngameScript
 
         void SetThrust(Base6Directions.Direction direction, float magnitude)
         {
+            var velocityVector = _remote.GetShipVelocities().LinearVelocity;
             magnitude = Math.Max(-1, Math.Min(magnitude, 1));
+
             var reverseIndex = (int)direction;
             var index = reverseIndex + (reverseIndex % 2 == 0 ? 1 : -1);
             if (magnitude < 0)
@@ -204,16 +211,15 @@ namespace IngameScript
         }
         private string Ascend()
         {
+            UnsetBlocks();
             _bottomConnector.Disconnect();
-            SetIndicators(State.Up);
+            SetIndicators(State.Ascending);
             CalculateRotationVector();
             SetGyro();
-            if (_topConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
+            if (_topConnector.Status == MyShipConnectorStatus.Connectable && _distanceVector.Length() < 0.05)
             {
                 TurnOff();
                 _topConnector.Connect();
-                _stationDoor = GridTerminalSystem.GetBlockWithName("Capsule Top Door") as IMyDoor;
-                _gate = GridTerminalSystem.GetBlockWithName("Capsule Top Gate") as IMyDoor;
             }
             var status = $"Ascending\n{_distanceVector.Length():0000}m";
             IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
@@ -222,25 +228,59 @@ namespace IngameScript
 
         private string Descend()
         {
+            UnsetBlocks();
             _topConnector.Disconnect();
-            SetIndicators(State.Down);
+            SetIndicators(State.Descending);
             CalculateRotationVector();
             SetGyro();
-            if (_bottomConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
+            if (_bottomConnector.Status == MyShipConnectorStatus.Connectable && _distanceVector.Length() < 0.25)
             {
                 TurnOff();
                 _bottomConnector.Connect();
-                _stationDoor = GridTerminalSystem.GetBlockWithName("Capsule Bottom Door") as IMyDoor;
-                _gate = GridTerminalSystem.GetBlockWithName("Capsule Bottom Gate") as IMyDoor;
             }
             var status = $"Descending\n{_distanceVector.Length():0000}m";
             IGC.SendUnicastMessage(_capsuleHubId, _capsuleDistanceBroadcastTag, status);
             return status;
         }
 
+        private void UnsetBlocks()
+        {
+            _gate = null;
+            _stationDoor = null;
+        }
+
         private void SetBlocks(State state)
         {
+            var upDown = state == State.Up ? "Top" : "Bottom";
+            _stationDoor = GridTerminalSystem.GetBlockWithName($"Capsule {upDown} Door") as IMyDoor;
+            _gate = GridTerminalSystem.GetBlockWithName($"Capsule {upDown} Gate") as IMyDoor;
 
+            if (!_o2Tanks.Any())
+            {
+                GridTerminalSystem.GetBlocksOfType(_o2Tanks, o => o != _o2Tank && o.CustomName.Contains("Oxy"));
+            }
+            if (!_airVents.Any())
+            {
+                GridTerminalSystem.GetBlocksOfType(_airVents, p => p.CustomName.StartsWith("Capsule Air Vent"));
+            }
+        }
+
+        private bool CanOpenGate()
+        {
+            return _door.Status == DoorStatus.Closed && _stationDoor.Status == DoorStatus.Closed && (_airVents.All(a => a.GetOxygenLevel() == 0f) || _o2Tanks.All(o => o.FilledRatio > 0.95f));
+        }
+
+        private State UpDown()
+        {
+            if (_bottomConnector.Status == MyShipConnectorStatus.Connected) return State.Down;
+            if (_topConnector.Status == MyShipConnectorStatus.Connected) return State.Up;
+            var dTop = (_topDockMatrix.Translation - _topConnector.WorldMatrix.Translation).Length();
+            var dBottom = (_bottomDockMatrix.Translation - _bottomConnector.WorldMatrix.Translation).Length();
+            return dTop < dBottom ? State.Ascending : State.Descending;
+        }
+        private State AscendDescend()
+        {
+            return _bottomConnector.Status == MyShipConnectorStatus.Connected ? State.Ascending : State.Descending;
         }
 
         private StateMachineState<State>[] GetStates()
@@ -252,9 +292,10 @@ namespace IngameScript
                     Id = State.Init,
                     Update = () => {
                         IGC.SendBroadcastMessage(_capsuleInfoBroadcastTag,"");
+                        SetBlocks(UpDown());
                         return "Initializing";
                     },
-                    NextState = () => _topDockMatrix != default(MatrixD) ? State.Down : _null,
+                    NextState = () => _topDockMatrix != default(MatrixD) ? UpDown() : _null,
                 },
                 new StateMachineState<State>
                 {
@@ -262,15 +303,15 @@ namespace IngameScript
                     Update = () => "Docked at\nBase",
                     Triggers = new Dictionary<string, State>
                     {
-                        ["Up"] = State.Ascending,
-                        ["Toggle"] = State.Ascending
+                        ["Up"] = State.ClosingDoors,
+                        ["Toggle"] = State.ClosingDoors
                     },
                 },
                 new StateMachineState<State>
                 {
                     Id = State.Ascending,
                     Update = Ascend,
-                    NextState = () => _topConnector.Status == MyShipConnectorStatus.Connected ? State.Up : _null,
+                    NextState = () => _topConnector.Status == MyShipConnectorStatus.Connected ? State.ClosingGate : _null,
                     Triggers = new Dictionary<string, State>
                     {
                         ["Down"] = State.Descending,
@@ -283,15 +324,15 @@ namespace IngameScript
                     Update = () => "Docked in\nOrbit",
                     Triggers = new Dictionary<string, State>
                     {
-                        ["Down"] = State.Descending,
-                        ["Toggle"] = State.Descending
+                        ["Down"] = State.ClosingDoors,
+                        ["Toggle"] = State.ClosingDoors
                     },
                 },
                 new StateMachineState<State>
                 {
                     Id = State.Descending,
                     Update = Descend,
-                    NextState = () => _bottomConnector.Status == MyShipConnectorStatus.Connected ? State.Down : _null,
+                    NextState = () => _bottomConnector.Status == MyShipConnectorStatus.Connected ? State.ClosingGate : _null,
                     Triggers = new Dictionary<string, State>
                     {
                         ["Up"] = State.Ascending,
@@ -302,8 +343,13 @@ namespace IngameScript
                 {
                     Id = State.ClosingGate,
                     Update = () => {
+                        if (_gate == null)
+                        {
+                            SetBlocks(UpDown());
+                            return "Closing Gate\n";
+                        }
                         _gate.CloseDoor();
-                        return "Closing\nGate";
+                        return $"Closing Gate\n{1-_gate.OpenRatio:p0}";
                     },
                     NextState = () => _gate.Status == DoorStatus.Closed ? State.OpeningDoors : _null,
                     Triggers = new Dictionary<string, State>
@@ -315,15 +361,51 @@ namespace IngameScript
                 {
                     Id = State.OpeningDoors,
                     Update = () => {
+                        _door.Enabled = true;
+                        _stationDoor.Enabled = true;
                         _stationDoor.OpenDoor();
                         _door.OpenDoor();
                         _airVents.ForEach(a => a.Depressurize = false);
+                        _o2Tank.Stockpile = true;
+                        _battery.ChargeMode = ChargeMode.Recharge;
                         return "Opening\nDoors";
                     },
-                    NextState = () => _gate.Status != DoorStatus.Closed ? _null : _topConnector.Status == MyShipConnectorStatus.Connected ? State.Up: State.Down,
+                    NextState = () => _door.Status == DoorStatus.Open ? UpDown() : _null,
                     Triggers = new Dictionary<string, State>
                     {
                         ["Toggle"] = State.ClosingDoors
+                    },
+                },
+                new StateMachineState<State>
+                {
+                    Id = State.ClosingDoors,
+                    Update = () => {
+                        _stationDoor.CloseDoor();
+                        _door.CloseDoor();
+                        _airVents.ForEach(a => a.Depressurize = true);
+                        _o2Tank.Stockpile = false;
+                        _battery.ChargeMode = ChargeMode.Auto;
+                        return "Closing\nDoors";
+                    },
+                    NextState = () => CanOpenGate() ? State.OpeningGate : _null,
+                    Triggers = new Dictionary<string, State>
+                    {
+                        ["Toggle"] = State.OpeningDoors
+                    },
+                },
+                new StateMachineState<State>
+                {
+                    Id = State.OpeningGate,
+                    Update = () => {
+                        _gate.OpenDoor();
+                        _door.Enabled = false;
+                        _stationDoor.Enabled = false;
+                        return $"Opening Gate\n{_gate.OpenRatio:p0}";
+                    },
+                    NextState = () =>  _gate.Status == DoorStatus.Open ? AscendDescend() : _null,
+                    Triggers = new Dictionary<string, State>
+                    {
+                        ["Toggle"] = State.OpeningDoors
                     },
                 },
             };
