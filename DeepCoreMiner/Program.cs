@@ -48,7 +48,13 @@ namespace IngameScript
             [MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SteelPlate")] = 125,
         };
 
-        FiniteStateMachine StateMachine;
+        enum State
+        {
+            Resetting, Mining, ConnectingTop, ConnectingBottom, DisconnectingTop, DisconnectingBottom
+        }
+        State? _null = null;
+
+        StateMachine<State> _stateMachine;
 
         const float PistonMineSpeed = 0.02f;
         const float PistonDescendSpeed = -0.3f;
@@ -113,71 +119,69 @@ namespace IngameScript
             });
             TopPiston.MaxLimit = BottomPiston.MaxLimit = LateralPistonMaxLimit;
             TopPiston.MinLimit = BottomPiston.MinLimit = LateralPistonMinLimit;
-
             var states = new[]
             {
-                new State {
-                    EndCondition = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit,
-                    NextState = 1,
+                new StateMachineState<State>{
+                    Id = State.ConnectingBottom,
+                    NextState = () => BottomConnector.Status == MyShipConnectorStatus.Connected ? State.DisconnectingTop : _null,
                     Update = () => {
-                        BottomConnector.Disconnect();
-                        BottomMergeBlock.Enabled = false;
-                        BottomPiston.Retract();
-                        return "Disconnecting\n  bottom";
-                    }
-                },
-                new State {
-                    EndCondition = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit),
-                    NextState = 2,
-                    Update = () => {
-                        BottomMergeBlock.Enabled = true;
-                        Pistons.ForEach(p => p.Velocity = PistonMineSpeed);
-                        return $"Mining:\n  {PistonRatio:p1}";
-                    }
-                },
-                new State {
-                    EndCondition = () => BottomConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = 3,
-                    Update = () => {
-                        BottomPiston.Extend();
+                        TopPiston.Extend();
                         if (BottomMergeBlock.IsConnected)
                         {
                             BottomConnector.Connect();
                         }
-                        return "Connecting\n  bottom";
+                        return "Connecting bottom";
                     }
                 },
-                new State {
-                    EndCondition = () => TopPiston.CurrentPosition == TopPiston.MinLimit,
-                    NextState = 4,
+                new StateMachineState<State>{
+                    Id = State.DisconnectingBottom,
+                    NextState = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit ? State.Mining : _null,
                     Update = () => {
-                        TopConnector.Disconnect();
-                        TopMergeBlock.Enabled = false;
+                        BottomConnector.Disconnect();
+                        BottomMergeBlock.Enabled = false;
                         TopPiston.Retract();
-                        return "Disconnecting\n  top";
+                        return "Disconnecting bottom";
                     }
                 },
-                new State {
-                    EndCondition = () => Pistons.All(p => p.CurrentPosition == p.MinLimit),
-                    NextState = 5,
+                new StateMachineState<State>{
+                    Id = State.ConnectingTop,
+                    NextState = () => TopConnector.Status == MyShipConnectorStatus.Connected ? State.DisconnectingBottom : _null,
                     Update = () => {
-                        TopMergeBlock.Enabled = true;
-                        Pistons.ForEach(p => p.Velocity = PistonDescendSpeed);
-                        return $"Resetting:\n  {1 - PistonRatio:p1}";
-                    }
-                },
-                new State {
-                    EndCondition = () => TopConnector.Status == MyShipConnectorStatus.Connected,
-                    NextState = 0,
-                    Update = () => {
-
                         TopPiston.Extend();
                         if (TopMergeBlock.IsConnected)
                         {
                             QueueBlueprint();
                             TopConnector.Connect();
                         }
-                        return "Connecting\n  top";
+                        return "Connecting Top";
+                    }
+                },
+                new StateMachineState<State>{
+                    Id = State.DisconnectingTop,
+                    NextState = () => TopPiston.CurrentPosition == TopPiston.MinLimit ? State.Resetting : _null,
+                    Update = () => {
+                        TopConnector.Disconnect();
+                        TopMergeBlock.Enabled = false;
+                        TopPiston.Retract();
+                        return "Disconnecting top";
+                    }
+                },
+                new StateMachineState<State>{
+                    Id = State.Mining,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit) ? State.ConnectingTop : _null,
+                    Update = () => {
+                        TopMergeBlock.Enabled = true;
+                        Pistons.ForEach(p => p.Velocity = PistonMineSpeed);
+                        return $"Mining: {PistonRatio:p0}";
+                    }
+                },
+                new StateMachineState<State>{
+                    Id = State.Resetting,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MinLimit) ? State.ConnectingBottom : _null,
+                    Update = () => {
+                        BottomMergeBlock.Enabled = true;
+                        Pistons.ForEach(p => p.Velocity = PistonDescendSpeed);
+                        return $"Resetting: {1-PistonRatio:p0}";
                     }
                 },
             };
@@ -186,9 +190,9 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType(surfaceProviders, s => (s as IMyTerminalBlock)?.CustomName.StartsWith("Deep Core Miner") == true);
             Lcds = surfaceProviders.Select(s => s.GetSurface(0)).ToList();
 
-            int startIndex;
-            startIndex = int.TryParse(Storage, out startIndex) ? startIndex : 0;
-            StateMachine = new FiniteStateMachine(startIndex, states);
+            State startState;
+            startState = Enum.TryParse(Storage, out startState) ? startState : 0;
+            _stateMachine = new StateMachine<State>(startState, states);
 
             Runtime.UpdateFrequency = UpdateFrequency.Update100;
 
@@ -196,7 +200,7 @@ namespace IngameScript
 
         public void Save()
         {
-            Storage = $"{StateMachine.ActiveStateIndex}";
+            Storage = $"{_stateMachine.ActiveState.Id}";
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -209,7 +213,7 @@ namespace IngameScript
             SetActive();
             UpdatePower();
             var status = Active ? "Active\n" : "Inactive\n";
-            status += StateMachine.Update();
+            status += _stateMachine.Update();
             status += $"\nInventories: {StoneInventories.Count()}";
             status += $"\nInventory: {GetInventoryRatio("stone"):p0}";
             Lcds.ForEach(l => l?.WriteText(status));

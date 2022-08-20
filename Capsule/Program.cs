@@ -57,7 +57,7 @@ namespace IngameScript
         long _capsuleHubId;
 
 
-        enum States
+        enum State
         {
             Init, Up, Down, Ascending, Descending, OpeningGate, ClosingGate, OpeningDoors, ClosingDoors
         }
@@ -65,14 +65,14 @@ namespace IngameScript
         {
             Up, Down, Toggle
         }
-        StateMachine<States> _stateMachine;
+        StateMachine<State> _stateMachine;
 
         
 
         public Program()
         {
             var states = GetStates();
-            _stateMachine = new StateMachine<States>(States.Init, states);
+            _stateMachine = new StateMachine<State>(State.Init, states);
 
             _listener = IGC.UnicastListener;
 
@@ -170,14 +170,14 @@ namespace IngameScript
             _gyro.Roll = (float)-_gyroVector.Z;
         }
 
-        void SetIndicators(States state)
+        void SetIndicators(State state)
         {
-            _distanceVector = state == States.Up 
+            _distanceVector = state == State.Up 
                 ? _topConnector.WorldMatrix.Translation - _topDockMatrix.Translation
                 : _bottomConnector.WorldMatrix.Translation - _bottomDockMatrix.Translation;
             _targetVector = Vector3D.TransformNormal(_distanceVector, MatrixD.Transpose(_remote.WorldMatrix));
 
-            var y = state == States.Up 
+            var y = state == State.Up 
                 ? (float)_yUpPid.Control(-_targetVector.Y / 10, _pidTimestep)
                 : (float)_yDownPid.Control(-_targetVector.Y / 10, _pidTimestep);
             var x = (float)_xPid.Control(_targetVector.X / 10, _pidTimestep);
@@ -205,7 +205,7 @@ namespace IngameScript
         private string Ascend()
         {
             _bottomConnector.Disconnect();
-            SetIndicators(States.Up);
+            SetIndicators(State.Up);
             CalculateRotationVector();
             SetGyro();
             if (_topConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
@@ -223,7 +223,7 @@ namespace IngameScript
         private string Descend()
         {
             _topConnector.Disconnect();
-            SetIndicators(States.Down);
+            SetIndicators(State.Down);
             CalculateRotationVector();
             SetGyro();
             if (_bottomConnector.Status == MyShipConnectorStatus.Connectable && _targetVector.Length() < 0.05)
@@ -238,87 +238,92 @@ namespace IngameScript
             return status;
         }
 
-        private StateMachine<States>.State[] GetStates()
+        private void SetBlocks(State state)
         {
-            States? _null = null;
-            return new StateMachine<States>.State[] {
-                new StateMachine<States>.State
+
+        }
+
+        private StateMachineState<State>[] GetStates()
+        {
+            State? _null = null;
+            return new StateMachineState<State>[] {
+                new StateMachineState<State>
                 {
-                    Id = States.Init,
+                    Id = State.Init,
                     Update = () => {
                         IGC.SendBroadcastMessage(_capsuleInfoBroadcastTag,"");
                         return "Initializing";
                     },
-                    NextState = () => _topDockMatrix != default(MatrixD) ? States.Down : _null,
+                    NextState = () => _topDockMatrix != default(MatrixD) ? State.Down : _null,
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.Down,
+                    Id = State.Down,
                     Update = () => "Docked at\nBase",
-                    Triggers = new Dictionary<string, States>
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Up"] = States.Ascending,
-                        ["Toggle"] = States.Ascending
+                        ["Up"] = State.Ascending,
+                        ["Toggle"] = State.Ascending
                     },
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.Ascending,
+                    Id = State.Ascending,
                     Update = Ascend,
-                    NextState = () => _topConnector.Status == MyShipConnectorStatus.Connected ? States.Up : _null,
-                    Triggers = new Dictionary<string, States>
+                    NextState = () => _topConnector.Status == MyShipConnectorStatus.Connected ? State.Up : _null,
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Down"] = States.Descending,
-                        ["Toggle"] = States.Descending
+                        ["Down"] = State.Descending,
+                        ["Toggle"] = State.Descending
                     },
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.Up,
+                    Id = State.Up,
                     Update = () => "Docked in\nOrbit",
-                    Triggers = new Dictionary<string, States>
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Down"] = States.Descending,
-                        ["Toggle"] = States.Descending
+                        ["Down"] = State.Descending,
+                        ["Toggle"] = State.Descending
                     },
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.Descending,
+                    Id = State.Descending,
                     Update = Descend,
-                    NextState = () => _bottomConnector.Status == MyShipConnectorStatus.Connected ? States.Down : _null,
-                    Triggers = new Dictionary<string, States>
+                    NextState = () => _bottomConnector.Status == MyShipConnectorStatus.Connected ? State.Down : _null,
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Up"] = States.Ascending,
-                        ["Toggle"] = States.Ascending
+                        ["Up"] = State.Ascending,
+                        ["Toggle"] = State.Ascending
                     },
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.ClosingGate,
+                    Id = State.ClosingGate,
                     Update = () => {
                         _gate.CloseDoor();
                         return "Closing\nGate";
                     },
-                    NextState = () => _gate.Status == DoorStatus.Closed ? States.OpeningDoors : _null,
-                    Triggers = new Dictionary<string, States>
+                    NextState = () => _gate.Status == DoorStatus.Closed ? State.OpeningDoors : _null,
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Toggle"] = States.OpeningGate
+                        ["Toggle"] = State.OpeningGate
                     },
                 },
-                new StateMachine<States>.State
+                new StateMachineState<State>
                 {
-                    Id = States.OpeningDoors,
+                    Id = State.OpeningDoors,
                     Update = () => {
                         _stationDoor.OpenDoor();
                         _door.OpenDoor();
                         _airVents.ForEach(a => a.Depressurize = false);
                         return "Opening\nDoors";
                     },
-                    NextState = () => _gate.Status != DoorStatus.Closed ? _null : _topConnector.Status == MyShipConnectorStatus.Connected ? States.Up: States.Down,
-                    Triggers = new Dictionary<string, States>
+                    NextState = () => _gate.Status != DoorStatus.Closed ? _null : _topConnector.Status == MyShipConnectorStatus.Connected ? State.Up: State.Down,
+                    Triggers = new Dictionary<string, State>
                     {
-                        ["Toggle"] = States.ClosingDoors
+                        ["Toggle"] = State.ClosingDoors
                     },
                 },
             };

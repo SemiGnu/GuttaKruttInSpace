@@ -22,13 +22,13 @@ namespace IngameScript
 {
     partial class Program
     {
-        public class StateMachine<EnumStates> 
-            where EnumStates : struct
+        public class StateMachine<TState> 
+            where TState : struct
         {
-            public State[] States { get; set; }
-            public State ActiveState { get; set; }
+            public StateMachineState<TState>[] States { get; set; }
+            public StateMachineState<TState> ActiveState { get; set; }
 
-            public StateMachine(EnumStates startState, State[] states)
+            public StateMachine(TState startState, StateMachineState<TState>[] states)
             {
                 States = states;
                 SetState(startState);
@@ -46,25 +46,25 @@ namespace IngameScript
 
             public void Trigger(string transition)
             {
-                EnumStates newState;
+                TState newState;
                 if (ActiveState.Triggers.TryGetValue(transition, out newState))
                 {
                     SetState(newState);
                 }
             }
 
-            private void SetState(EnumStates state)
+            private void SetState(TState state)
             {
                 ActiveState = States.First(s => s.Id.Equals(state));
             }
 
-            public class State
-            {
-                public EnumStates Id { get; set; }
-                public Func<string> Update { get; set; } = () => string.Empty;
-                public Func<EnumStates?> NextState { get; set; } = () => null;
-                public Dictionary<string, EnumStates> Triggers { get; set; } = new Dictionary<string, EnumStates>();
-            }
+        }
+        public class StateMachineState<EnumState> where EnumState : struct
+        {
+            public EnumState Id { get; set; }
+            public Func<string> Update { get; set; } = () => string.Empty;
+            public Func<EnumState?> NextState { get; set; } = () => null;
+            public Dictionary<string, EnumState> Triggers { get; set; } = new Dictionary<string, EnumState>();
         }
 
     }

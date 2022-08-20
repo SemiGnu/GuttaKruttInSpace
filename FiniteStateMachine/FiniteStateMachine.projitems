@@ -9,7 +9,6 @@
     <Import_RootNamespace>IngameScript</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)FiniteStateMachine.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StateMachine.cs" />
   </ItemGroup>
 </Project>

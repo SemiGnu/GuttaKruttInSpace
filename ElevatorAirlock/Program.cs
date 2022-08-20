@@ -23,134 +23,142 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        IMyDoor Gate;
-        IMyDoor InnerDoor;
-        IMyPistonBase Piston;
-        IMyAirVent AirVent;
+        IMyDoor _gate;
+        IMyDoor _innerDoor;
+        IMyPistonBase _piston;
+        IMyAirVent _airVent;
 
-        FiniteStateMachine StateMachine;
+        enum State
+        {
+            Lowering, Raising, OpeningGate, ClosingGate, OpeningDoor, ClosingDoor
+        }
+        State? _null = null;
 
-        const float PistonSpeed = 2f;
+        StateMachine<State> _stateMachine;
 
-        const float PistonMaxLimit = 7.2f;
-        const float PistonMinLimit = 0.15f;
+        const float _pistonSpeed = 2f;
 
-        const string Toggle = "Toggle"; 
+        const float _pistonMaxLimit = 7.2f;
+        const float _pistonMinLimit = 0.15f;
+
+        const string _toggle = "Toggle"; 
 
         public Program()
         {
-            Gate = GridTerminalSystem.GetBlockWithName("Elevator Gate") as IMyDoor;
-            InnerDoor = GridTerminalSystem.GetBlockWithName("Elevator Inner Door") as IMyDoor;
-            Piston = GridTerminalSystem.GetBlockWithName("Elevator Piston") as IMyPistonBase;
-            AirVent = GridTerminalSystem.GetBlockWithName("Elevator Air Vent") as IMyAirVent;
+            _gate = GridTerminalSystem.GetBlockWithName("Elevator Gate") as IMyDoor;
+            _innerDoor = GridTerminalSystem.GetBlockWithName("Elevator Inner Door") as IMyDoor;
+            _piston = GridTerminalSystem.GetBlockWithName("Elevator Piston") as IMyPistonBase;
+            _airVent = GridTerminalSystem.GetBlockWithName("Elevator Air Vent") as IMyAirVent;
 
             
 
-            Piston.MaxLimit = PistonMaxLimit;
-            Piston.MinLimit = PistonMinLimit;
+            _piston.MaxLimit = _pistonMaxLimit;
+            _piston.MinLimit = _pistonMinLimit;
 
             
 
             var states = new[]
             {
-                new State { // 0 open inner door
+                new StateMachineState<State>{
+                    Id = State.OpeningDoor,
                     Update = () =>
                     {
-                        AirVent.Depressurize = false;
-                        InnerDoor.OpenDoor();
+                        _airVent.Depressurize = false;
+                        _innerDoor.OpenDoor();
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 1
+                        [_toggle] = State.ClosingDoor
                     }
                 },
-                new State { // 1 close inner door
-                    EndCondition = () => AirVent.GetOxygenLevel() == 0f,
-                    NextState = 2,
+                new StateMachineState<State>{
+                    Id = State.ClosingDoor,
+                    NextState = () => _airVent.GetOxygenLevel() == 0f ? State.OpeningGate : _null,
                     Update = () =>
                     {
-                        AirVent.Depressurize = true;
-                        InnerDoor.CloseDoor();
+                        _airVent.Depressurize = true;
+                        _innerDoor.CloseDoor();
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 0
+                        [_toggle] = State.OpeningDoor
                     }
                 },
-                new State { // 2 open gate
-                    EndCondition = () => Gate.Status == DoorStatus.Open,
-                    NextState = 3,
+                new StateMachineState<State>{
+                    Id = State.OpeningGate,
+                    NextState = () => _gate.Status == DoorStatus.Open ? State.Lowering : _null,
                     Update = () =>
                     {
-                        Gate.OpenDoor();
+                        _gate.OpenDoor();
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 5
+                        [_toggle] = State.ClosingGate
                     }
                 },
-                new State { // 3 lower
+                new StateMachineState<State>{
+                    Id = State.Lowering,
                     Update = () =>
                     {
-                        Piston.Velocity = PistonSpeed;
+                        _piston.Velocity = _pistonSpeed;
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 4
+                        [_toggle] = State.Raising
                     }
                 },
-                new State { // 4 raise
-                    EndCondition = () => Piston.CurrentPosition == PistonMinLimit,
-                    NextState = 5,
+                new StateMachineState<State>{
+                    Id = State.Raising,
+                    NextState = () => _piston.CurrentPosition == _pistonMinLimit ? State.ClosingGate : _null,
                     Update = () =>
                     {
-                        Piston.Velocity = -PistonSpeed;
+                        _piston.Velocity = -_pistonSpeed;
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 3
+                        [_toggle] = State.Lowering
                     }
                 },
-                new State { // 5 close gate
-                    EndCondition = () => Gate.Status == DoorStatus.Closed,
-                    NextState = 0,
+                new StateMachineState<State>{
+                    Id = State.ClosingGate,
+                    NextState = () => _gate.Status == DoorStatus.Closed ? State.OpeningDoor : _null,
                     Update = () =>
                     {
-                        Gate.CloseDoor();
+                        _gate.CloseDoor();
                         return string.Empty;
                     },
-                    Triggers = new Dictionary<string, int>
+                    Triggers = new Dictionary<string, State>
                     {
-                        [Toggle] = 2
+                        [_toggle] = State.OpeningGate
                     }
                 },
             };
 
-            int startIndex;
-            startIndex = int.TryParse(Storage, out startIndex) ? startIndex : 0;
-            StateMachine = new FiniteStateMachine(startIndex, states);
+            State startIndex;
+            startIndex = Enum.TryParse(Storage, out startIndex) ? startIndex : 0;
+            _stateMachine = new StateMachine<State>(startIndex, states);
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
         }
 
         public void Save()
         {
-            Storage = $"{StateMachine.ActiveStateIndex}";
+            Storage = $"{_stateMachine.ActiveState.Id}";
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
             if ((updateSource & UpdateType.Trigger) > 0)
             {
-                StateMachine.Trigger(argument);
+                _stateMachine.Trigger(argument);
             }
-            StateMachine.Update();
-            Echo($"{StateMachine.ActiveStateIndex}");
+            _stateMachine.Update();
+            Echo($"{_stateMachine.ActiveState.Id}");
         }
     }
 }

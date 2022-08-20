@@ -42,7 +42,7 @@ namespace IngameScript
             [MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SteelPlate")] = 775,
         };
 
-        StateMachine<States> _stateMachine;
+        StateMachine<State> _stateMachine;
 
 
         const float PistonMaxLimit = 9.84f;
@@ -65,11 +65,11 @@ namespace IngameScript
 
         bool Active = true;
 
-        enum States
+        enum State
         {
             Grinding, Building, ConnectingTop, ConnectingBottom, DisconnectingTop, DisconnectingBottom
         }
-        States? _null = null;
+        State? _null = null;
 
         public Program()
         {
@@ -97,9 +97,9 @@ namespace IngameScript
 
             var states = new[]
             {
-                new StateMachine<States>.State {
-                    Id = States.DisconnectingBottom,
-                    NextState = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit ? States.Grinding : _null,
+                new StateMachineState<State>{
+                    Id = State.DisconnectingBottom,
+                    NextState = () => BottomPiston.CurrentPosition == BottomPiston.MinLimit ? State.Grinding : _null,
                     Update = () => {
                         BottomConnector.Disconnect();
                         BottomMergeBlock.Enabled = false;
@@ -107,9 +107,9 @@ namespace IngameScript
                         return "Disconnecting bottom";
                     }
                 },
-                new StateMachine<States>.State {
-                    Id = States.Grinding,
-                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MinLimit) ? States.ConnectingBottom : _null,
+                new StateMachineState<State>{
+                    Id = State.Grinding,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MinLimit) ? State.ConnectingBottom : _null,
                     Update = () => {
                         BottomMergeBlock.Enabled = true;
                         var speed = VerticalSpeed(PistonPosition);
@@ -117,9 +117,9 @@ namespace IngameScript
                         return $"Grinding: {1-PistonRatio:p0}";
                     }
                 },
-                new StateMachine<States>.State {
-                    Id = States.ConnectingBottom,
-                    NextState = () => BottomConnector.Status == MyShipConnectorStatus.Connected ? States.DisconnectingTop : _null,
+                new StateMachineState<State>{
+                    Id = State.ConnectingBottom,
+                    NextState = () => BottomConnector.Status == MyShipConnectorStatus.Connected ? State.DisconnectingTop : _null,
                     Update = () => {
                         BottomPiston.Velocity = LateralSpeed(BottomPiston.CurrentPosition);
                         if (BottomMergeBlock.IsConnected)
@@ -129,9 +129,9 @@ namespace IngameScript
                         return "Connecting bottom";
                     }
                 },
-                new StateMachine<States>.State {
-                    Id = States.DisconnectingTop,
-                    NextState = () => TopPiston.CurrentPosition == TopPiston.MinLimit ? States.Building : _null,
+                new StateMachineState<State>{
+                    Id = State.DisconnectingTop,
+                    NextState = () => TopPiston.CurrentPosition == TopPiston.MinLimit ? State.Building : _null,
                     Update = () => {
                         TopConnector.Disconnect();
                         TopMergeBlock.Enabled = false;
@@ -139,9 +139,9 @@ namespace IngameScript
                         return "Disconnecting top";
                     }
                 },
-                new StateMachine<States>.State {
-                    Id = States.Building,
-                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit) && GetQueueLength() == 0 ? States.ConnectingTop : _null,
+                new StateMachineState<State>{
+                    Id = State.Building,
+                    NextState = () => Pistons.All(p => p.CurrentPosition == p.MaxLimit) && GetQueueLength() == 0 ? State.ConnectingTop : _null,
                     Update = () => {
                         TopMergeBlock.Enabled = true;
                         var speed = 0.3f;// VerticalSpeed(PistonPosition);
@@ -149,9 +149,9 @@ namespace IngameScript
                         return $"Building: {PistonRatio:p0}";
                     }
                 },
-                new StateMachine<States>.State {
-                    Id = States.ConnectingTop,
-                    NextState = () => TopConnector.Status == MyShipConnectorStatus.Connected ? States.DisconnectingBottom : _null,
+                new StateMachineState<State>{
+                    Id = State.ConnectingTop,
+                    NextState = () => TopConnector.Status == MyShipConnectorStatus.Connected ? State.DisconnectingBottom : _null,
                     Update = () => {
                         TopPiston.Velocity = LateralSpeed(TopPiston.CurrentPosition);
                         if (TopMergeBlock.IsConnected)
@@ -168,9 +168,9 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType(surfaceProviders, s => (s as IMyTerminalBlock)?.CustomName.StartsWith("Tower") == true);
             Lcds = surfaceProviders.Select(s => s.GetSurface(0)).ToList();
 
-            States startState;
-            startState = Enum.TryParse(Storage, out startState) ? startState : States.ConnectingTop;
-            _stateMachine = new StateMachine<States>(startState, states);
+            State startState;
+            startState = Enum.TryParse(Storage, out startState) ? startState : State.ConnectingTop;
+            _stateMachine = new StateMachine<State>(startState, states);
 
             Runtime.UpdateFrequency = UpdateFrequency.Update10;
 
@@ -178,7 +178,7 @@ namespace IngameScript
 
         public void Save()
         {
-            Storage = $"{_stateMachine.ActiveState}";
+            Storage = $"{_stateMachine.ActiveState.Id}";
         }
 
         public void Main(string argument, UpdateType updateSource)
